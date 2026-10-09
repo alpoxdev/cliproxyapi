@@ -69,6 +69,7 @@ const names: Record<string, string> = {
   xai: "xAI",
   meta: "Meta",
   devin: "Devin",
+  "command-code": "Command Code",
   "openai-compatibility": "OpenAI-compatible",
   interactions: "Interactions",
 };
@@ -270,6 +271,17 @@ export function quotaWindows(p: string, payload: Data): Window[] {
     for (const [k, v] of Object.entries<Data>(payload.usages || {}))
       if (v?.limit > 0)
         out.push({ label: k.replaceAll("_", " "), used: clamp((Number(v.used) / Number(v.limit)) * 100), reset: String(v.reset_time || "") });
+  } else if (p === "command-code") {
+    // /alpha/billing/credits: rolling windows as { cap, used, resetAt }, then the credit pools.
+    const b = payload.data || payload;
+    for (const [k, label] of [["fiveHour", "5-hour limit"], ["weekly", "Weekly limit"]]) {
+      const w = b.windowLimits?.[k];
+      if (!(Number(w?.cap) > 0 && Number(w?.used) >= 0)) continue;
+      const at = typeof w.resetAt === "number" ? (w.resetAt < 1e12 ? w.resetAt * 1000 : w.resetAt) : Date.parse(w.resetAt);
+      out.push({ label, used: clamp((Number(w.used) / Number(w.cap)) * 100), reset: at > 0 ? new Date(at).toISOString() : "" });
+    }
+    const pools = ["monthlyCredits", "purchasedCredits", "freeCredits"].map((k) => Number(b.credits?.[k])).filter(Number.isFinite);
+    if (pools.length) out.push({ label: "Credits left", used: null, reset: "", detail: `$${pools.reduce((s, n) => s + Math.max(0, n), 0).toFixed(2)}` });
   }
   return out;
 }

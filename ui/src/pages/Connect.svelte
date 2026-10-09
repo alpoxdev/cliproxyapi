@@ -4,7 +4,7 @@
   import { label, type Data } from "../core";
   import Missing from "../Missing.svelte";
 
-  const builtIn = ["claude", "codex", "antigravity", "kimi", "kimi-ai", "xai", "devin", "meta"];
+  const builtIn = ["claude", "codex", "antigravity", "kimi", "kimi-ai", "xai", "devin", "meta", "command-code"];
   // Go starts a local callback forwarder for these when asked by a web UI.
   const forwarded = ["claude", "codex", "antigravity", "xai", "devin"];
   if (!store.plugins.data) store.plugins.load();
@@ -127,15 +127,16 @@
         </li>
         {#if session.flow !== "device"}
           <li>
-            <span>If the browser ends on a page that fails to load, paste its full address here.</span>
+            <span>{session.provider === "command-code" ? "If the server is on another machine, paste a Command Code API key here instead." : "If the browser ends on a page that fails to load, paste its full address here."}</span>
             <form
               class="form"
               onsubmit={(e) => {
                 e.preventDefault();
-                store.act(() => api("/oauth/callback", "POST", { provider: session!.provider, redirect_url: callback.trim() }), "Callback sent. Finishing sign-in…");
+                const key = session!.provider === "command-code";
+                store.act(() => api("/oauth/callback", "POST", key ? { provider: "command-code", state: session!.state, code: callback.trim() } : { provider: session!.provider, redirect_url: callback.trim() }), "Callback sent. Finishing sign-in…");
               }}
             >
-              <label class="field"><span class="sr">Callback address</span><input type="url" required bind:value={callback} placeholder="http://localhost:…/callback?code=…" /></label>
+              <label class="field"><span class="sr">{session.provider === "command-code" ? "API key" : "Callback address"}</span><input type={session.provider === "command-code" ? "password" : "url"} required bind:value={callback} placeholder={session.provider === "command-code" ? "Command Code API key" : "http://localhost:…/callback?code=…"} autocomplete="off" /></label>
               <button class="key" disabled={store.busy}>Send</button>
             </form>
           </li>
