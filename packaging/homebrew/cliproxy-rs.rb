@@ -2,27 +2,27 @@ require "securerandom"
 
 class CliproxyRs < Formula
   desc "Local proxy for coding assistant APIs"
-  homepage "https://github.com/vayungodara/cliproxy-rs"
+  homepage "https://github.com/alpoxdev/cliproxyapi"
   license "MIT"
 
   on_macos do
     on_arm do
-      url "https://github.com/vayungodara/cliproxy-rs/releases/download/v@VERSION@/cliproxy-@VERSION@-aarch64-apple-darwin.tar.gz"
+      url "https://github.com/alpoxdev/cliproxyapi/releases/download/v@VERSION@/cliproxy-@VERSION@-aarch64-apple-darwin.tar.gz"
       sha256 "@SHA256_AARCH64_APPLE_DARWIN@"
     end
     on_intel do
-      url "https://github.com/vayungodara/cliproxy-rs/releases/download/v@VERSION@/cliproxy-@VERSION@-x86_64-apple-darwin.tar.gz"
+      url "https://github.com/alpoxdev/cliproxyapi/releases/download/v@VERSION@/cliproxy-@VERSION@-x86_64-apple-darwin.tar.gz"
       sha256 "@SHA256_X86_64_APPLE_DARWIN@"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/vayungodara/cliproxy-rs/releases/download/v@VERSION@/cliproxy-@VERSION@-aarch64-unknown-linux-gnu.tar.gz"
+      url "https://github.com/alpoxdev/cliproxyapi/releases/download/v@VERSION@/cliproxy-@VERSION@-aarch64-unknown-linux-gnu.tar.gz"
       sha256 "@SHA256_AARCH64_UNKNOWN_LINUX_GNU@"
     end
     on_intel do
-      url "https://github.com/vayungodara/cliproxy-rs/releases/download/v@VERSION@/cliproxy-@VERSION@-x86_64-unknown-linux-gnu.tar.gz"
+      url "https://github.com/alpoxdev/cliproxyapi/releases/download/v@VERSION@/cliproxy-@VERSION@-x86_64-unknown-linux-gnu.tar.gz"
       sha256 "@SHA256_X86_64_UNKNOWN_LINUX_GNU@"
     end
   end

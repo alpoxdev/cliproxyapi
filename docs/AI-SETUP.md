@@ -39,13 +39,13 @@ curl -s -m 2 http://127.0.0.1:8317/healthz; echo " exit=$?"
 On macOS and Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/vayungodara/cliproxy-rs/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/alpoxdev/cliproxyapi/dev/install.sh | sh
 ```
 
 On Windows, in PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/vayungodara/cliproxy-rs/master/install.ps1 | iex
+irm https://raw.githubusercontent.com/alpoxdev/cliproxyapi/dev/install.ps1 | iex
 ```
 
 The installer:
@@ -67,7 +67,7 @@ CLIPROXY_MANAGEMENT_KEY=...
 If there is no release binary for the system, build from source. That needs `git`, a Rust toolchain (`cargo`), `cmake`, `clang` and `perl`; ask the user before installing any of them. Then follow [the first run without the install script](INSTALL.md#first-run-without-the-install-script), writing the two keys into `~/.cliproxy-rs/keys.env` in the format above with `chmod 600`.
 
 ```sh
-git clone https://github.com/vayungodara/cliproxy-rs.git ~/cliproxy-rs-src
+git clone https://github.com/alpoxdev/cliproxyapi.git ~/cliproxy-rs-src
 cd ~/cliproxy-rs-src && cargo build --release -p cliproxy
 mkdir -p ~/.local/bin && install -m 0755 target/release/cliproxy ~/.local/bin/cliproxy
 ```
@@ -97,10 +97,10 @@ Expect `{"status":"ok"}` (PowerShell shows `status: ok`) and then `200`. A `401`
 Ask the user first. If they agree, run the installer again with `--service`:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/vayungodara/cliproxy-rs/master/install.sh | sh -s -- --service
+curl -fsSL https://raw.githubusercontent.com/alpoxdev/cliproxyapi/dev/install.sh | sh -s -- --service
 ```
 
-On Windows: `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/vayungodara/cliproxy-rs/master/install.ps1))) -Service`. This adds a systemd user unit on Linux, a launchd agent on macOS or a sign-in entry on Windows; [INSTALL.md](INSTALL.md#start-at-login) has the details and how to undo it.
+On Windows: `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/alpoxdev/cliproxyapi/dev/install.ps1))) -Service`. This adds a systemd user unit on Linux, a launchd agent on macOS or a sign-in entry on Windows; [INSTALL.md](INSTALL.md#start-at-login) has the details and how to undo it.
 
 ## 6. Open the dashboard
 

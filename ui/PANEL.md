@@ -43,11 +43,11 @@ Go can fetch the panel from a GitHub repository's latest release. Every cliproxy
 
 ```yaml
 management:
-  panel-github-repository: "https://github.com/vayungodara/cliproxy-rs"
+  panel-github-repository: "https://github.com/alpoxdev/cliproxyapi"
   disable-auto-update-panel: false
 ```
 
-Go reads `https://api.github.com/repos/vayungodara/cliproxy-rs/releases/latest`, takes the asset named exactly `management.html`, checks it against the asset's `sha256` digest when GitHub provides one, and writes it to `static/management.html`. It checks again every three hours and replaces the file when the release changes.
+Go reads `https://api.github.com/repos/alpoxdev/cliproxyapi/releases/latest`, takes the asset named exactly `management.html`, checks it against the asset's `sha256` digest when GitHub provides one, and writes it to `static/management.html`. It checks again every three hours and replaces the file when the release changes.
 
 The updater only sees published releases, not drafts. Until the first release is published, install by hand.
 

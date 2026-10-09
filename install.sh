@@ -1,7 +1,7 @@
 #!/bin/sh
 # Installs cliproxy-rs on macOS or Linux, sets it up and starts it.
 #
-#   curl -fsSL https://raw.githubusercontent.com/vayungodara/cliproxy-rs/master/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/alpoxdev/cliproxyapi/dev/install.sh | sh
 #
 # The first run downloads the release for this machine, checks it against the release's
 # SHA256SUMS and installs ~/.local/bin/cliproxy. It writes ~/.cliproxy-rs/config.yaml with
@@ -21,7 +21,7 @@
 #   CLIPROXY_HOME         config, keys, credentials and log (default: $HOME/.cliproxy-rs)
 #   CLIPROXY_NO_OPEN=1    never open a browser
 #   CLIPROXY_RELEASES     release page base URL, for mirrors and tests
-#                         (default: https://github.com/vayungodara/cliproxy-rs/releases)
+#                         (default: https://github.com/alpoxdev/cliproxyapi/releases)
 set -eu
 
 fail() {
@@ -31,7 +31,7 @@ fail() {
 
 # Everything runs from main, so a download cut short cannot run half a script.
 main() {
-  releases="${CLIPROXY_RELEASES:-https://github.com/vayungodara/cliproxy-rs/releases}"
+  releases="${CLIPROXY_RELEASES:-https://github.com/alpoxdev/cliproxyapi/releases}"
   dir="${CLIPROXY_INSTALL_DIR:-$HOME/.local/bin}"
   home="${CLIPROXY_HOME:-$HOME/.cliproxy-rs}"
   bin="$dir/cliproxy"

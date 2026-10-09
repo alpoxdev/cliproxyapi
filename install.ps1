@@ -1,6 +1,6 @@
 # Installs cliproxy-rs on Windows, sets it up and starts it. In PowerShell:
 #
-#   irm https://raw.githubusercontent.com/vayungodara/cliproxy-rs/master/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/alpoxdev/cliproxyapi/dev/install.ps1 | iex
 #
 # The first run downloads the Windows release, checks it against the release's SHA256SUMS
 # and installs %LOCALAPPDATA%\Programs\cliproxy-rs\cliproxy.exe. It writes
@@ -11,7 +11,7 @@
 # is put back and restarted. An existing config.yaml or keys.env is never changed.
 #
 # Options, passed like this:
-#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/vayungodara/cliproxy-rs/master/install.ps1))) -Service
+#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/alpoxdev/cliproxyapi/dev/install.ps1))) -Service
 #   -Service     also start cliproxy-rs when you sign in to Windows
 #   -BinaryOnly  only install or upgrade the binary; a running server keeps running
 #
@@ -27,7 +27,7 @@ function Install-CliproxyRs([bool]$Service, [bool]$BinaryOnly) {
   $ProgressPreference = 'SilentlyContinue'
   [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
-  $releases = if ($env:CLIPROXY_RELEASES) { $env:CLIPROXY_RELEASES } else { 'https://github.com/vayungodara/cliproxy-rs/releases' }
+  $releases = if ($env:CLIPROXY_RELEASES) { $env:CLIPROXY_RELEASES } else { 'https://github.com/alpoxdev/cliproxyapi/releases' }
   $dir = if ($env:CLIPROXY_INSTALL_DIR) { $env:CLIPROXY_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'Programs\cliproxy-rs' }
   $data = if ($env:CLIPROXY_HOME) { $env:CLIPROXY_HOME } else { Join-Path $env:USERPROFILE '.cliproxy-rs' }
   # Absolute paths: they go into the Run entry and identify this install's server process.

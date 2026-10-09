@@ -1,7 +1,7 @@
 # cliproxy-rs
 
-[![CI](https://github.com/vayungodara/cliproxy-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/vayungodara/cliproxy-rs/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/vayungodara/cliproxy-rs)](https://github.com/vayungodara/cliproxy-rs/releases/latest)
+[![CI](https://github.com/alpoxdev/cliproxyapi/actions/workflows/ci.yml/badge.svg)](https://github.com/alpoxdev/cliproxyapi/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/alpoxdev/cliproxyapi)](https://github.com/alpoxdev/cliproxyapi/releases/latest)
 [![Homebrew](https://img.shields.io/badge/brew-vayungodara%2Ftap%2Fcliproxy--rs-orange)](https://github.com/vayungodara/homebrew-tap)
 
 Codex CLI, Claude Code 같은 도구를 하나의 로컬 주소에 연결해 DeepSeek, GLM, Kimi, OpenRouter 또는 자체 게이트웨이를 사용합니다. 본인의 API 키나 계정으로 여러 제공자를 함께 사용하며, OpenAI, Anthropic, Gemini API(프로그램끼리 데이터를 주고받는 통로) 형식을 변환합니다.
@@ -12,13 +12,13 @@ Codex CLI, Claude Code 같은 도구를 하나의 로컬 주소에 연결해 Dee
 1. macOS 또는 Linux에서 설치합니다.
 
    ```sh
-   curl -fsSL https://raw.githubusercontent.com/vayungodara/cliproxy-rs/master/install.sh | sh
+   curl -fsSL https://raw.githubusercontent.com/alpoxdev/cliproxyapi/dev/install.sh | sh
    ```
 
    Windows에서는 PowerShell을 사용합니다.
 
    ```powershell
-   irm https://raw.githubusercontent.com/vayungodara/cliproxy-rs/master/install.ps1 | iex
+   irm https://raw.githubusercontent.com/alpoxdev/cliproxyapi/dev/install.ps1 | iex
    ```
 
    설치 스크립트는 릴리스 파일의 체크섬을 확인하고 `~/.cliproxy-rs/config.yaml`을 만든 다음 프록시를 시작하고 대시보드를 엽니다. Windows 설정 경로는 `%USERPROFILE%\.cliproxy-rs\config.yaml`입니다. 새 키는 화면에 출력하지 않고 `keys.env`에 저장합니다.

@@ -7,13 +7,13 @@ This guide connects a coding tool to your own accounts or API keys through clipr
 On macOS or Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/vayungodara/cliproxy-rs/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/alpoxdev/cliproxyapi/dev/install.sh | sh
 ```
 
 On Windows, in PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/vayungodara/cliproxy-rs/master/install.ps1 | iex
+irm https://raw.githubusercontent.com/alpoxdev/cliproxyapi/dev/install.ps1 | iex
 ```
 
 The script downloads the release for your machine and checks it against the release's `SHA256SUMS`. It writes `~/.cliproxy-rs/config.yaml` with two new keys, starts the server in the background and checks that it answers. It ends like this:

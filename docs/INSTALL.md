@@ -7,13 +7,13 @@ cliproxy-rs is one executable, `cliproxy` (`cliproxy.exe` on Windows), with the 
 On macOS or Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/vayungodara/cliproxy-rs/master/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/alpoxdev/cliproxyapi/dev/install.sh | sh
 ```
 
 On Windows, in PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/vayungodara/cliproxy-rs/master/install.ps1 | iex
+irm https://raw.githubusercontent.com/alpoxdev/cliproxyapi/dev/install.ps1 | iex
 ```
 
 Neither needs `sudo`, administrator rights, Rust or any other tool. The first run:
@@ -43,11 +43,11 @@ Read [install.sh](../install.sh) or [install.ps1](../install.ps1) before you run
 Pass options to a piped script like this:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/vayungodara/cliproxy-rs/master/install.sh | sh -s -- --service
+curl -fsSL https://raw.githubusercontent.com/alpoxdev/cliproxyapi/dev/install.sh | sh -s -- --service
 ```
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/vayungodara/cliproxy-rs/master/install.ps1))) -Service
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/alpoxdev/cliproxyapi/dev/install.ps1))) -Service
 ```
 
 Both scripts read these environment variables:
@@ -58,7 +58,7 @@ Both scripts read these environment variables:
 | `CLIPROXY_INSTALL_DIR` | `~/.local/bin`, or `%LOCALAPPDATA%\Programs\cliproxy-rs` | Where the binary goes. |
 | `CLIPROXY_HOME` | `~/.cliproxy-rs`, or `%USERPROFILE%\.cliproxy-rs` | Config, keys, credentials and log. |
 | `CLIPROXY_NO_OPEN` | unset | Set to `1` to never open a browser. |
-| `CLIPROXY_RELEASES` | `https://github.com/vayungodara/cliproxy-rs/releases` | Release page base URL for a mirror or installer tests. Unless `CLIPROXY_VERSION` is set, a HEAD request for `<base>/latest` must redirect to a final URL ending in `/tag/<tag>`: the installers read the tag from that URL. It must also serve `/download/<tag>/SHA256SUMS` and the platform archive under `/download/<tag>/`. |
+| `CLIPROXY_RELEASES` | `https://github.com/alpoxdev/cliproxyapi/releases` | Release page base URL for a mirror or installer tests. Unless `CLIPROXY_VERSION` is set, a HEAD request for `<base>/latest` must redirect to a final URL ending in `/tag/<tag>`: the installers read the tag from that URL. It must also serve `/download/<tag>/SHA256SUMS` and the platform archive under `/download/<tag>/`. |
 
 Use only a mirror you trust. The installer checks the archive against the `SHA256SUMS` file from that same mirror.
 
@@ -106,7 +106,7 @@ For maintainers: add `HOMEBREW_TAP_TOKEN` to this repository's Actions secrets. 
 
 ## From a release
 
-Each [release](https://github.com/vayungodara/cliproxy-rs/releases) has an archive per platform and a `SHA256SUMS` file:
+Each [release](https://github.com/alpoxdev/cliproxyapi/releases) has an archive per platform and a `SHA256SUMS` file:
 
 | Platform | Archive |
 | --- | --- |
@@ -153,8 +153,8 @@ On macOS, `xcode-select --install` and `brew install cmake` are enough. On Windo
 Then build:
 
 ```sh
-git clone https://github.com/vayungodara/cliproxy-rs.git
-cd cliproxy-rs
+git clone https://github.com/alpoxdev/cliproxyapi.git
+cd cliproxyapi
 cargo build --release -p cliproxy
 ./target/release/cliproxy --version
 ```
