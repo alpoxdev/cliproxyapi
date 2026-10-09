@@ -1,122 +1,137 @@
-# Benchmarks
+# 벤치마크
 
-Binary size, memory and throughput of cliproxy-rs and CLIProxyAPI on the same configuration, with a local fake upstream. The numbers come from one small machine and a synthetic load, so use them to compare the two servers with each other. They say little about how much traffic either one can carry on bigger hardware.
+> 이 문서에서 알 수 있는 것: 같은 설정에서 cliproxy-rs와 CLIProxyAPI의 실행 파일 크기, 메모리(RSS), 처리량을 비교한 측정 결과.
 
-## Field memory
+같은 설정에 로컬 가짜 업스트림(요청을 실제로 받아 처리하는 제공자 서버)을 붙여 cliproxy-rs와 CLIProxyAPI의 실행 파일 크기, 메모리(RSS), 처리량을 쟀습니다. 숫자는 작은 장비 하나와 인위적으로 만든 부하에서 나온 값입니다. 그래서 두 서버를 서로 비교할 때 쓰는 값이고, 더 큰 장비에서 각 서버가 트래픽을 얼마나 감당할 수 있는지는 거의 보여 주지 않습니다.
 
-On 2026-10-05, a personal install in daily use ran at 75 to 101 MB RSS. That reading was unscripted; sample timing, workload and the exact build were not recorded.
+<a id="field-memory"></a>
+## 실사용 환경 메모리
 
-The 17.3 MB idle result below is from a fresh 0.1.0 process with no connected accounts and small synthetic requests. An earlier 647 MB field report prompted the [Claude soak](#claude-soak-large-prompts-and-memory), which measured retained memory after larger requests but did not reproduce that report. Keep those cases separate when comparing memory.
+2026-10-05에 매일 쓰는 개인 설치본이 RSS 75~101 MB로 돌았습니다. 계획 없이 잰 값이라 측정 시점, 작업 부하, 정확한 빌드를 기록하지 않았습니다.
 
-A later field report from 0.2.0, serving Claude and Codex with 1 to 2 MB prompts, showed a resting floor that rose from 26 to 89 MB over 7 hours and peaks of 300 to 400 MB. It prompted the [field mix](#field-mix-claude-codex-and-count_tokens) soak, in which two copies of the same tokenizer, about 93 MB, made up most of 0.2.0's resting RSS of 128 to 145 MB.
+아래 유휴 상태 17.3 MB는 계정을 연결하지 않은 새 0.1.0 프로세스에 작은 합성 요청을 넣어 얻은 값입니다. 앞서 647 MB가 나왔다는 현장 보고(실제로 쓰는 서버에서 올린 관찰 기록)가 [Claude 장시간 부하 시험](#claude-soak-large-prompts-and-memory)을 시작한 계기였습니다. 이 시험은 큰 요청 뒤에 남는 메모리를 쟀지만 그 보고를 재현하지는 못했습니다. 메모리를 비교할 때는 이 두 사례를 따로 봐야 합니다.
 
-## Setup
+이어진 0.2.0 현장 보고는 1~2 MB 프롬프트로 Claude와 Codex를 처리한 서버에서 7시간 동안 휴지 상태 바닥값(부하가 끊긴 뒤 내려앉은 RSS 최저값)이 26 MB에서 89 MB로 올라가고 최고값이 300~400 MB에 이르렀다고 전했습니다. 이 보고가 [실사용 환경 조합](#field-mix-claude-codex-and-count_tokens) 장시간 부하 시험의 계기가 되었습니다. 그 시험에서는 같은 토크나이저 두 벌(약 93 MB)이 0.2.0의 휴지 RSS 128~145 MB 대부분을 차지했습니다.
 
-Measured on 2026-10-03.
+<a id="setup"></a>
+## 측정 환경
 
-- cliproxy-rs 0.1.0, the launch build, release profile (thin LTO, one codegen unit, stripped), built with rustc 1.99.0.
-- CLIProxyAPI v8.0.10 (commit `6fecc6e`), the official `linux_amd64` release binary, built with Go 1.26.4.
-- A virtual machine with 2 vCPUs (Intel Xeon at 2.60 GHz) and 3.9 GB of memory, running Debian 12 with Linux 6.1. It is a shared machine, and the same binary measures differently from run to run, by up to about 15%; compare the two servers within one run.
-- Both servers run with the same `config.yaml`: one OpenAI-compatible provider that points at the fake upstream, one client key and an empty credential folder, started with `--local-model`. Each scenario starts a fresh server process.
-- The server is pinned to CPU 0. The fake upstream and the load generator share CPU 1.
-- The whole run happens in a network namespace with only a loopback interface. Go tries to download its management panel and an Antigravity version file at start; both fail at once there. On a machine with network access, Go's idle memory was about 10 MB higher after those downloads.
-- Both servers write one access-log line per request to standard output (redirected to a file).
+2026-10-03에 측정했습니다.
 
-The scripts are in [`bench/`](../bench): `upstream/` is the fake OpenAI-compatible upstream, `load/` the load generator, `run.sh` runs every scenario three times and `summary.sh` prints the median of the three rounds. Both helpers use only the Go standard library. The raw results are in [`bench/results/`](../bench/results), one file per run.
+- cliproxy-rs 0.1.0은 출시 빌드이고 릴리스 프로파일(thin LTO, 코드젠 유닛 하나, 스트립)이며 rustc 1.99.0으로 빌드했습니다.
+- CLIProxyAPI v8.0.10(커밋 `6fecc6e`)은 공식 `linux_amd64` 릴리스 실행 파일이고 Go 1.26.4로 빌드했습니다.
+- 가상 머신은 vCPU 2개(Intel Xeon 2.60 GHz)와 메모리 3.9 GB이고 Debian 12에 Linux 6.1을 씁니다. 공유 장비라 같은 실행 파일도 실행마다 최대 약 15%까지 다르게 측정됩니다. 그래서 두 서버는 같은 실행 안에서 비교해야 합니다.
+- 두 서버는 같은 `config.yaml`로 실행합니다. 가짜 업스트림을 가리키는 OpenAI 호환 제공자 하나, 클라이언트 키 하나, 비어 있는 인증 파일 폴더를 쓰고 `--local-model`로 시작합니다. 시나리오마다 새 서버 프로세스를 시작합니다.
+- 서버는 CPU 0에 고정합니다. 가짜 업스트림과 부하 생성기는 CPU 1을 함께 씁니다.
+- 실행 전체는 루프백 인터페이스만 있는 네트워크 네임스페이스에서 진행됩니다. Go 서버는 시작할 때 자체 관리 패널과 Antigravity 버전 파일을 내려받으려 하는데, 여기서는 둘 다 곧바로 실패합니다. 네트워크가 되는 장비에서는 이 내려받기 뒤에 Go의 유휴 메모리가 약 10 MB 더 높았습니다.
+- 두 서버 모두 요청마다 액세스 로그 한 줄을 표준 출력(파일로 리다이렉트)에 씁니다.
+
+스크립트는 [`bench/`](../bench)에 있습니다. `upstream/`은 OpenAI 호환 가짜 업스트림, `load/`는 부하 생성기입니다. `run.sh`는 모든 시나리오를 세 번 실행하고 `summary.sh`는 세 번의 중앙값을 출력합니다. 두 도우미 스크립트는 Go 표준 라이브러리만 씁니다. 원시 결과는 [`bench/results/`](../bench/results)에 실행마다 파일 하나로 있습니다.
 
 ```sh
 bench/run.sh target/release/cliproxy /path/to/cli-proxy-api /tmp/bench 3
 bench/summary.sh /tmp/bench/results.jsonl
 ```
 
-## Scenarios
+<a id="scenarios"></a>
+## 시나리오
 
-- Idle: start, wait 15 seconds, read the resident memory. Startup is the time from launch to the first answered request.
-- chat: `POST /v1/chat/completions`, not streamed, 32 concurrent clients for 20 seconds. The request is 1.7 KB; the upstream answers at once with a 0.6 KB completion.
-- chat-stream: the same request with `"stream": true`. The upstream sends 22 SSE chunks with no pause between them.
-- chat-stream-slow: 256 concurrent streams, with 50 ms between chunks, so each response takes about 1.1 seconds. This is closest to many coding agents waiting on a model, and it shows the memory each open stream costs.
-- messages-stream: `POST /v1/messages` in Anthropic format, streamed. Both servers translate it to OpenAI chat for the upstream and translate the stream back.
+- 유휴(Idle): 시작한 뒤 15초를 기다리고 상주 메모리를 읽습니다. 시작 시간은 프로세스를 띄운 순간부터 첫 요청에 응답할 때까지 걸린 시간입니다.
+- chat: `POST /v1/chat/completions`를 스트리밍 없이, 동시 클라이언트 32개로 20초 동안 보냅니다. 요청 크기는 1.7 KB이고 업스트림은 0.6 KB짜리 응답으로 곧바로 답합니다.
+- chat-stream: 같은 요청에 `"stream": true`를 붙입니다. 업스트림은 쉬지 않고 SSE(서버가 결과를 조금씩 흘려 보내는 방식) 청크 22개를 보냅니다.
+- chat-stream-slow: 동시 스트림 256개를 열고 청크 사이에 50 ms를 둡니다. 그래서 응답마다 약 1.1초가 걸립니다. 모델을 기다리는 코딩 에이전트 여러 개에 가장 가까운 상황이고, 열린 스트림 하나가 쓰는 메모리를 보여 줍니다.
+- messages-stream: Anthropic 형식의 `POST /v1/messages`를 스트리밍으로 보냅니다. 두 서버 모두 업스트림에는 OpenAI chat 형식으로 바꿔 보내고, 돌아오는 스트림은 다시 되돌려 변환합니다.
 
-A response counts only if its status is 200 and the body has the expected end marker. Latency is measured at the client. CPU time per request is the server's user and system time during the load, divided by the completed requests. Peak memory is the process's `VmHWM`; the second memory figure is `VmRSS` 10 seconds after the load stops.
+응답은 상태가 200이고 본문에 기대한 종료 표시가 있을 때만 집계합니다. 지연 시간은 클라이언트에서 잽니다. 요청당 CPU 시간은 부하가 걸린 동안의 서버 사용자·시스템 시간을 완료한 요청 수로 나눈 값입니다. 최대 메모리는 프로세스의 `VmHWM`이고, 두 번째 메모리 값은 부하가 멈춘 10초 뒤의 `VmRSS`입니다.
 
-## Results
+<a id="results"></a>
+## 결과
 
-Median of three rounds, 2026-10-03, cliproxy-rs 0.1.0.
+2026-10-03, cliproxy-rs 0.1.0, 세 번 실행의 중앙값입니다.
 
-### Idle
+<a id="idle"></a>
+### 유휴
 
-| Server | Startup (ms) | RSS after 15 s (MB) |
+| 서버 | 시작 시간 (ms) | 15초 후 RSS (MB) |
 | --- | --- | --- |
 | cliproxy-rs | 17 | 17.3 |
 | Go | 204 | 44.7 |
 
+<a id="chat"></a>
 ### chat
 
-| Server | Requests/s | p50 (ms) | p99 (ms) | CPU ms per request | Peak RSS (MB) | RSS 10 s later (MB) | Failed |
+| 서버 | 초당 요청 수 | p50 (ms) | p99 (ms) | 요청당 CPU ms | 최대 RSS (MB) | 10초 후 RSS (MB) | 실패 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | cliproxy-rs | 1168 | 25.3 | 51.9 | 0.85 | 25.2 | 25.2 | 0 |
 | Go | 1568 | 18.9 | 50.1 | 0.62 | 57.8 | 56.9 | 0 |
 
+<a id="chat-stream"></a>
 ### chat-stream
 
-| Server | Requests/s | p50 (ms) | p99 (ms) | CPU ms per request | Peak RSS (MB) | RSS 10 s later (MB) | Failed |
+| 서버 | 초당 요청 수 | p50 (ms) | p99 (ms) | 요청당 CPU ms | 최대 RSS (MB) | 10초 후 RSS (MB) | 실패 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | cliproxy-rs | 833 | 34.9 | 75.1 | 1.19 | 26.2 | 26.2 | 0 |
 | Go | 916 | 34.4 | 69.6 | 1.08 | 57.8 | 56.7 | 0 |
 
+<a id="chat-stream-slow"></a>
 ### chat-stream-slow
 
-| Server | Requests/s | p50 (ms) | p99 (ms) | CPU ms per request | Peak RSS (MB) | RSS 10 s later (MB) | Failed |
+| 서버 | 초당 요청 수 | p50 (ms) | p99 (ms) | 요청당 CPU ms | 최대 RSS (MB) | 10초 후 RSS (MB) | 실패 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | cliproxy-rs | 238 | 1021.4 | 1414.5 | 1.95 | 49.7 | 49.2 | 0 |
 | Go | 235 | 1039.7 | 1272.2 | 2.9 | 103.8 | 103.8 | 0 |
 
+<a id="messages-stream"></a>
 ### messages-stream
 
-| Server | Requests/s | p50 (ms) | p99 (ms) | CPU ms per request | Peak RSS (MB) | RSS 10 s later (MB) | Failed |
+| 서버 | 초당 요청 수 | p50 (ms) | p99 (ms) | 요청당 CPU ms | 최대 RSS (MB) | 10초 후 RSS (MB) | 실패 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | cliproxy-rs | 793 | 37.5 | 68.2 | 1.25 | 26.9 | 26.6 | 0 |
 | Go | 564 | 54.5 | 115.4 | 1.75 | 79.3 | 77.5 | 0 |
 
-Startup varies a lot on this machine, mostly in the first round after a binary is copied in. cliproxy-rs took 15, 17 and 46 ms; Go took 104, 204 and 453 ms in this run, and 45 to 98 ms in quieter runs earlier the same day.
+이 장비에서는 시작 시간이 크게 흔들립니다. 특히 실행 파일을 막 복사한 뒤 첫 실행에서 그렇습니다. cliproxy-rs는 15, 17, 46 ms가 나왔고, Go는 이 실행에서 104, 204, 453 ms가 나왔습니다. 같은 날 앞선 조용한 실행에서는 45~98 ms였습니다.
 
-## Binary size
+<a id="binary-size"></a>
+## 실행 파일 크기
 
-Linux x86_64. The cliproxy-rs binary includes its dashboard; the Go binary does not, because Go downloads its panel separately.
+Linux x86_64 기준입니다. cliproxy-rs 실행 파일은 대시보드를 포함하고, Go 실행 파일은 포함하지 않습니다. Go는 패널을 따로 내려받기 때문입니다.
 
 | | cliproxy-rs 0.1.0 | CLIProxyAPI v8.0.10 release |
 | --- | --- | --- |
-| Binary | 35.9 MB | 69.1 MB |
-| Binary, gzip -9 | 15.1 MB | 22.6 MB |
-| Release archive | 15.2 MB | 22.9 MB |
+| 실행 파일 | 35.9 MB | 69.1 MB |
+| 실행 파일, gzip -9 | 15.1 MB | 22.6 MB |
+| 릴리스 압축 파일 | 15.2 MB | 22.9 MB |
 
-The cliproxy-rs binary links glibc and libstdc++ dynamically; BoringSSL is linked in. The Go binary is the official release build (stripped), and its archive also holds two READMEs and the example config.
+cliproxy-rs 실행 파일은 glibc와 libstdc++를 동적으로 연결하고 BoringSSL은 안에 넣어 연결합니다. Go 실행 파일은 공식 릴리스 빌드(스트립)이고, 압축 파일 안에 README 두 개와 예제 설정도 들어 있습니다.
 
-## What the numbers say
+<a id="what-the-numbers-say"></a>
+## 숫자가 말하는 것
 
-- Non-streaming requests: Go is faster. It handled 1,568 requests per second against cliproxy-rs's 1,168, about 34% more, and used less CPU per request (0.62 ms against 0.85 ms). Both servers were CPU-bound in this test.
-- Plain streams: Go was ahead too, 916 against 833 streams per second.
-- Translated streams: in messages-stream, where both servers translate between the Anthropic and OpenAI formats, cliproxy-rs served 793 streams per second against Go's 564, about 41% more, with less CPU per request (1.25 ms against 1.75 ms) and a lower p99 latency (68 ms against 115 ms).
-- Slow streams: with 256 streams that each last about a second, throughput is set by the upstream and both kept up; cliproxy-rs used 1.95 ms of CPU per stream against 2.9 ms.
-- Memory: cliproxy-rs used about 40% of Go's memory at idle (17.3 MB against 44.7 MB) and under load (25 to 27 MB against 58 to 79 MB). With 256 slow streams open it peaked at 50 MB and Go at 104 MB.
-- Startup and size: cliproxy-rs answered its first request in 17 ms (median) and its binary is half the size of Go's.
+- 스트리밍 없는 요청: Go가 더 빠릅니다. 초당 1,568건을 처리해 cliproxy-rs의 1,168건보다 약 34% 많았고, 요청당 CPU도 더 적게 썼습니다(0.62 ms 대 0.85 ms). 이 시험에서 두 서버 모두 CPU가 한계였습니다.
+- 일반 스트림: Go가 앞섰습니다. 초당 916개 대 833개입니다.
+- 형식을 변환하는 스트림: 두 서버가 Anthropic과 OpenAI 형식을 서로 변환하는 messages-stream에서 cliproxy-rs는 초당 793개를 처리해 Go의 564개보다 약 41% 많았습니다. 요청당 CPU도 더 적었고(1.25 ms 대 1.75 ms) p99 지연 시간도 더 낮았습니다(68 ms 대 115 ms).
+- 느린 스트림: 각각 약 1초씩 걸리는 스트림 256개를 열면 처리량은 업스트림이 정합니다. 두 서버 모두 따라갔고, cliproxy-rs는 스트림당 CPU를 1.95 ms 썼습니다(Go는 2.9 ms).
+- 메모리: cliproxy-rs는 유휴 상태에서 Go 메모리의 약 40%를 썼고(17.3 MB 대 44.7 MB), 부하 상태에서도 그랬습니다(25~27 MB 대 58~79 MB). 느린 스트림 256개를 열었을 때 최대치는 cliproxy-rs가 50 MB, Go가 104 MB였습니다.
+- 시작 시간과 크기: cliproxy-rs는 첫 요청에 17 ms(중앙값) 만에 응답했고 실행 파일 크기는 Go의 절반입니다.
 
-No response failed in any run.
+어느 실행에서도 실패한 응답은 없었습니다.
 
-## Claude soak: large prompts and memory
+<a id="claude-soak-large-prompts-and-memory"></a>
+## Claude 장시간 부하 시험: 큰 프롬프트와 메모리
 
-Measured on 2026-10-04, after a field report from a Linux machine (glibc, systemd user service) that had served large-prompt Claude traffic for 10 hours: about 2,400 streamed `/v1/messages` requests with a few concurrent sessions left cliproxy-rs 0.1.1 at 647 MB resident (`VmRSS`) after a peak (`VmHWM`) of 840 MB, almost all of it anonymous memory. The scenarios above use 1.7 KB requests and did not show it.
+2026-10-04에 측정했습니다. Linux 장비(glibc, systemd 사용자 서비스)에서 큰 프롬프트를 쓰는 Claude 트래픽을 10시간 처리한 뒤 올라온 현장 보고가 계기였습니다. 동시 세션 몇 개로 스트리밍 `/v1/messages` 요청을 약 2,400건 처리한 cliproxy-rs 0.1.1은 최대 `VmHWM` 840 MB를 찍은 뒤 상주 `VmRSS` 647 MB로 남았고, 그 대부분이 익명 메모리였습니다. 위 시나리오는 요청 크기가 1.7 KB라 이 현상을 보여 주지 못했습니다.
 
-### Setup
+<a id="setup-1"></a>
+### 측정 환경
 
-- A virtual machine with 8 vCPUs (Intel Xeon at 2.60 GHz) and 16 GB of memory, running Debian 12 (glibc 2.36) with Linux 6.1. It is a shared machine: the same binary measured from 25 to 37 ms of CPU per request across runs, so compare servers within one session.
-- cliproxy-rs master at `afe356b` (the 0.1.1 code) and the change described below, release profile, rustc 1.99.0. CLIProxyAPI at `6fecc6e`, built from source with Go 1.26.4.
-- [`bench/messages.sh`](../bench/messages.sh) runs in a loopback-only network namespace. [`bench/messages/`](../bench/messages) is both the fake Claude upstream and the load generator (Go standard library only). Both servers get one Claude API key whose `base-url` is the fake upstream. An OAuth login would make both servers fetch the account profile from `api.anthropic.com`, which this setup cannot reach, so the Claude Code OAuth path (cloaking, tool-name remapping, the native TLS client) is not covered.
-- The server runs on CPUs 0 to 3; the fake upstream and the load generator on CPUs 4 to 7. Each run starts a fresh server.
-- Load: 8 concurrent sessions. Each session is a growing coding-agent conversation: an 18 KB system prompt, 24 tools, then pairs of an assistant turn (signed thinking, text, `tool_use`) and a user `tool_result`, growing from 100 KB to 500 KB in 25 KB steps before a new session starts. 3,000 streamed requests, 306 KB on average. The upstream reads the whole request and streams 150 delta events 2 ms apart (thinking with a signature, text, then a `tool_use` block), about 43 KB of SSE over 0.37 s.
-- Large-prompt variant: the same with conversations from 1 MB to 3 MB in 100 KB steps, 600 requests, 1.9 MB on average.
-- Measured per run: peak RSS (`VmHWM`), RSS 30 seconds after the load, server CPU time per request, completed requests per second, and at the client the time to the first response byte (TTFB) and to the end of the stream. A response counts only with status 200 and a `message_stop` event; none failed. RSS is sampled every second into `<label>.rss.tsv`.
-- Sent straight to the fake upstream (measured in the allocator session), the same load sees a TTFB p50 of 3.5 ms and a total p50 of 373 ms; the rest of a proxy's TTFB is the time it adds.
+- 가상 머신은 vCPU 8개(Intel Xeon 2.60 GHz)와 메모리 16 GB이고 Debian 12(glibc 2.36)에 Linux 6.1을 씁니다. 공유 장비라 같은 실행 파일도 실행마다 요청당 CPU가 25~37 ms로 다르게 측정됩니다. 그래서 두 서버는 한 세션 안에서 비교해야 합니다.
+- cliproxy-rs는 `afe356b`(0.1.1 코드)의 master와 아래에서 설명하는 변경을 릴리스 프로파일로, rustc 1.99.0으로 빌드했습니다. CLIProxyAPI는 `6fecc6e`를 Go 1.26.4로 소스에서 빌드했습니다.
+- [`bench/messages.sh`](../bench/messages.sh)는 루프백만 있는 네트워크 네임스페이스에서 실행합니다. [`bench/messages/`](../bench/messages)는 가짜 Claude 업스트림과 부하 생성기를 겸합니다(Go 표준 라이브러리만 사용). 두 서버 모두 `base-url`이 가짜 업스트림인 Claude API 키 하나를 씁니다. OAuth(비밀번호 없이 로그인하는 방식)로 로그인하면 두 서버가 `api.anthropic.com`에서 계정 프로필을 받아 와야 하는데, 이 환경에서는 그 주소에 닿을 수 없습니다. 그래서 Claude Code OAuth 경로(cloaking, 도구 이름 재매핑, 네이티브 TLS 클라이언트)는 다루지 않습니다.
+- 서버는 CPU 0~3에서 실행하고, 가짜 업스트림과 부하 생성기는 CPU 4~7에서 실행합니다. 실행마다 새 서버를 시작합니다.
+- 부하: 동시 세션 8개입니다. 세션마다 코딩 에이전트 대화가 커집니다. 18 KB 시스템 프롬프트와 도구 24개로 시작해, 어시스턴트 턴(서명이 붙은 thinking, 텍스트, `tool_use`)과 사용자 `tool_result`가 짝을 이룹니다. 대화는 100 KB에서 500 KB까지 25 KB씩 커지고, 그 뒤에 새 세션이 시작됩니다. 스트리밍 요청 3,000건, 평균 306 KB입니다. 업스트림은 요청 전체를 읽고 델타 이벤트 150개를 2 ms 간격으로 보냅니다(서명이 있는 thinking, 텍스트, `tool_use` 블록 순서). 0.37초 동안 약 43 KB의 SSE를 보내는 셈입니다.
+- 큰 프롬프트 변형: 같은 방식으로 대화를 1 MB에서 3 MB까지 100 KB씩 키웁니다. 요청 600건, 평균 1.9 MB입니다.
+- 실행마다 재는 값: 최대 RSS(`VmHWM`), 부하가 끝난 30초 뒤 RSS, 요청당 서버 CPU 시간, 초당 완료 요청 수, 그리고 클라이언트에서 첫 응답 바이트까지 걸린 시간(TTFB)과 스트림 끝까지 걸린 시간입니다. 응답은 상태가 200이고 `message_stop` 이벤트가 있을 때만 집계하며, 실패한 응답은 없었습니다. RSS는 1초마다 샘플링해 `<label>.rss.tsv`에 기록합니다.
+- 같은 부하를 가짜 업스트림에 바로 보내면(할당자 세션에서 측정) TTFB p50이 3.5 ms, 전체 p50이 373 ms입니다. 프록시의 TTFB에서 나머지는 프록시가 더한 시간입니다.
 
 ```sh
 bench/messages.sh /tmp/soak go /path/to/cli-proxy-api
@@ -125,62 +140,67 @@ bench/messages.sh /tmp/soak rust-arena2 target/release/cliproxy MALLOC_ARENA_MAX
 MIN=1000000 MAX=3000000 STEP=100000 N=600 bench/messages.sh /tmp/soak large target/release/cliproxy
 ```
 
-### What was found
+<a id="what-was-found"></a>
+### 찾은 것
 
-- CPU was the larger problem under this load. A `perf` profile of master under this load put 79% of the server's CPU in JSON scanning. The Claude executor visited the blocks that can carry `cache_control` (tools, system blocks, every message content block) by looking each one up again by path from the start of the body, so counting, normalizing and checking cache markers rescanned the conversation once per block: quadratic in its length. Go walks the blocks once with `ForEach`. The session-ID lookups also scanned long strings byte by byte. master spent 90 to 110 ms of CPU on a 306 KB request and 535 to 551 ms on a 1.9 MB one.
-- No leak. A heaptrack run of master over 600 requests of this load peaked at 33.5 MB of heap (the same load without heaptrack peaks at 66 MB of RSS), and 1.8 MB was still allocated at exit (process-lifetime state). The request handler held about eight copies of a body at its peak; they were all freed when the request ended.
-- Retention. After the large-prompt load, calling `malloc_trim(0)` inside the running server (through gdb) dropped its RSS from 86 MB to 42 MB and its anonymous memory from 66 MB to 21 MB. That memory was free inside glibc's per-thread arenas, which return only the top of each arena to the kernel. This is the mechanism behind a peak-then-plateau pattern like the field report; the 10-hour field number itself was not reproduced here.
+- 이 부하에서는 CPU가 더 큰 문제였습니다. 이 부하에서 master의 `perf` 프로파일을 뜨면 서버 CPU의 79%가 JSON 스캔에 쓰였습니다. Claude 실행기는 `cache_control`을 담을 수 있는 블록(도구, 시스템 블록, 모든 메시지 콘텐츠 블록)을 방문할 때마다 본문 처음부터 경로로 다시 찾았습니다. 그래서 개수 세기, 정규화, 캐시 표시 확인이 블록마다 대화를 처음부터 다시 훑었고, 대화 길이의 제곱에 비례해 늘어났습니다. Go는 `ForEach`로 블록을 한 번만 훑습니다. 세션 ID 조회도 긴 문자열을 바이트 단위로 훑었습니다. master는 306 KB 요청에 90~110 ms, 1.9 MB 요청에 535~551 ms의 CPU를 썼습니다.
+- 누수는 없습니다. 이 부하로 요청 600건을 처리하는 master에 heaptrack을 돌리면 힙 최대가 33.5 MB였고(같은 부하를 heaptrack 없이 돌리면 RSS 최대가 66 MB), 종료 시점에도 1.8 MB가 할당된 채 남았습니다(프로세스 수명 동안 유지되는 상태). 요청 처리기는 최대일 때 본문 사본을 약 여덟 개 들고 있었고, 요청이 끝나면 모두 해제되었습니다.
+- 메모리 잔류. 큰 프롬프트 부하 뒤에 실행 중인 서버 안에서(gdb로) `malloc_trim(0)`을 호출하면 RSS가 86 MB에서 42 MB로, 익명 메모리가 66 MB에서 21 MB로 줄었습니다. 그 메모리는 glibc가 스레드마다 두는 아레나(스레드별 메모리 구역) 안에서 놀고 있었고, glibc는 각 아레나의 맨 위 부분만 커널로 돌려줍니다. 현장 보고처럼 최대치를 찍은 뒤 높은 값에서 평평하게 유지되는 현상은 이 구조 때문입니다. 다만 보고에 나온 10시간 값 자체는 여기서 재현하지 못했습니다.
 
-### What changed
+<a id="what-changed"></a>
+### 바꾼 것
 
-- The `cache_control` block walk reads each block from one pass over the body, in Go's order (tools, system, messages), as do the web-search domain cleanup and the 1h-TTL check. The JSON scanner in `cpa-common` jumps over string contents with `memchr`. Both keep Go's results; the Go golden tests pass unchanged.
-- The final upstream body moves into the HTTP request instead of being copied, and the client's original body is no longer copied into a second `String`.
-- On Linux with glibc, a background thread calls `malloc_trim(0)` once the process goes quiet (under 50 ms of CPU in five seconds) and at least once a minute. An earlier version trimmed every 10 seconds; in two A/B pairs against no trimming it added 3.5 ms to the TTFB p50 in one pair and nothing measurable in the other, within this machine's noise. Trimming when quiet keeps the page faults that follow a trim away from busy periods. macOS and Windows keep their system allocators unchanged. (Since 2026-10-05 this is a task that trims once after startup, then parks until a response ends, runs the trim on the blocking pool rather than a request thread, and forces a trim every minute only while busy; see Idle below.)
+- `cache_control` 블록 순회는 본문을 한 번 훑어 각 블록을 읽고, Go와 같은 순서(도구, 시스템, 메시지)를 씁니다. 웹 검색 도메인 정리와 1h TTL 확인도 마찬가지입니다. `cpa-common`의 JSON 스캐너는 `memchr`로 문자열 내용을 건너뜁니다. 둘 다 Go의 결과를 그대로 내고, Go 골든 테스트도 그대로 통과합니다.
+- 업스트림으로 보낼 최종 본문은 복사하지 않고 HTTP 요청 안으로 옮깁니다. 클라이언트의 원본 본문도 더 이상 두 번째 `String`으로 복사하지 않습니다.
+- glibc를 쓰는 Linux에서는 프로세스가 조용해지면(5초 동안 CPU를 50 ms 미만 사용) 백그라운드 스레드가 `malloc_trim(0)`을 호출하고, 적어도 1분에 한 번은 호출합니다. 이전 버전은 10초마다 트림했습니다. 트림을 하지 않은 경우와 A/B로 두 쌍을 비교했더니 한 쌍에서는 TTFB p50이 3.5 ms 늘었고 다른 쌍에서는 이 장비의 잡음 범위 안이라 잴 만한 차이가 없었습니다. 조용할 때 트림하면 트림 뒤에 몰려오는 페이지 폴트가 바쁜 시간대에 겹치지 않습니다. macOS와 Windows는 시스템 할당자를 그대로 씁니다. (2026-10-05부터는 시작 직후 한 번 트림하고 응답이 끝날 때까지 쉬다가, 요청 스레드가 아니라 블로킹 풀에서 트림을 돌리고, 바쁠 때만 1분마다 강제로 트림하는 작업이 되었습니다. 아래 유휴 항목을 보십시오.)
 
-### Allocators
+<a id="allocators"></a>
+### 할당자
 
-master, default load, one session. None of the alternatives lowered the memory at the end of the run as much as trimming, and mimalloc nearly tripled it.
+master, 기본 부하, 한 세션 기준입니다. 대안 중 어느 것도 실행 끝 시점의 메모리를 트림만큼 낮추지 못했고, mimalloc은 거의 세 배로 늘렸습니다.
 
-| master with | Peak RSS (MB) | RSS 30 s later (MB) | CPU ms per request | TTFB p50 / p99 (ms) |
+| master에 적용한 설정 | 최대 RSS (MB) | 30초 후 RSS (MB) | 요청당 CPU ms | TTFB p50 / p99 (ms) |
 | --- | --- | --- | --- | --- |
 | glibc malloc | 66.3 | 51.8 | 92 | 84 / 199 |
 | glibc, `MALLOC_ARENA_MAX=2` | 64.0 | 45.6 | 89 | 81 / 190 |
-| jemalloc (tikv-jemallocator 0.6, defaults) | 76.3 | 61.0 | 81 | 73 / 171 |
-| mimalloc 0.1 (defaults) | 180.0 | 160.9 | 84 | 77 / 176 |
+| jemalloc (tikv-jemallocator 0.6, 기본값) | 76.3 | 61.0 | 81 | 73 / 171 |
+| mimalloc 0.1 (기본값) | 180.0 | 160.9 | 84 | 77 / 176 |
 
-With the CPU fix and the large-prompt load, `MALLOC_ARENA_MAX=2` left 106 MB after the run against 74 MB with default glibc, and a fixed `MALLOC_MMAP_THRESHOLD_=131072` left 26 MB but cost 23% more CPU per request (147 ms against 120 ms).
+CPU 수정과 큰 프롬프트 부하를 함께 적용하면 `MALLOC_ARENA_MAX=2`는 실행 뒤 106 MB를 남겼고 기본 glibc는 74 MB를 남겼습니다. `MALLOC_MMAP_THRESHOLD_=131072`를 고정하면 26 MB만 남았지만 요청당 CPU가 23% 더 들었습니다(147 ms 대 120 ms).
 
-### Results
+<a id="results-1"></a>
+### 결과
 
-Default load (306 KB requests), two rounds per server in one session, run in the order Go, master, this change.
+기본 부하(306 KB 요청)로 한 세션에서 서버마다 두 번 돌렸고, Go, master, 이번 변경 순서로 실행했습니다.
 
-| Server | Round | Peak RSS (MB) | RSS 30 s later (MB) | CPU ms per request | Requests/s | TTFB p50 / p99 (ms) | Total p50 / p99 (ms) |
+| 서버 | 회차 | 최대 RSS (MB) | 30초 후 RSS (MB) | 요청당 CPU ms | 초당 요청 수 | TTFB p50 / p99 (ms) | 전체 p50 / p99 (ms) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Go | 1 | 115.1 | 80.4 | 63 | 18.9 | 43.7 / 94.8 | 416 / 558 |
 | Go | 2 | 107.6 | 81.6 | 58 | 19.5 | 39.2 / 85.7 | 406 / 459 |
 | cliproxy-rs master | 1 | 65.7 | 49.9 | 110 | 16.4 | 100.6 / 234.0 | 482 / 615 |
 | cliproxy-rs master | 2 | 66.7 | 45.3 | 90 | 17.6 | 82.5 / 192.0 | 449 / 561 |
-| cliproxy-rs, this change | 1 | 64.2 | 29.0 | 32 | 19.9 | 24.9 / 53.0 | 399 / 447 |
-| cliproxy-rs, this change | 2 | 63.4 | 29.0 | 31 | 20.0 | 22.7 / 55.8 | 393 / 522 |
+| cliproxy-rs, 이번 변경 | 1 | 64.2 | 29.0 | 32 | 19.9 | 24.9 / 53.0 | 399 / 447 |
+| cliproxy-rs, 이번 변경 | 2 | 63.4 | 29.0 | 31 | 20.0 | 22.7 / 55.8 | 393 / 522 |
 
-Large prompts (1.9 MB requests), one round.
+큰 프롬프트(1.9 MB 요청), 한 번 실행.
 
-| Server | Peak RSS (MB) | RSS 30 s later (MB) | CPU ms per request | Requests/s | TTFB p50 / p99 (ms) | Total p50 / p99 (ms) |
+| 서버 | 최대 RSS (MB) | 30초 후 RSS (MB) | 요청당 CPU ms | 초당 요청 수 | TTFB p50 / p99 (ms) | 전체 p50 / p99 (ms) |
 | --- | --- | --- | --- | --- | --- | --- |
 | Go | 263.9 | 183.5 | 225 | 13.2 | 241 / 418 | 593 / 773 |
 | cliproxy-rs master | 232.1 | 157.7 | 551 | 7.1 | 732 / 1,841 | 1,057 / 2,062 |
-| cliproxy-rs, this change | 176.9 | 42.7 | 129 | 15.4 | 144 / 292 | 509 / 633 |
+| cliproxy-rs, 이번 변경 | 176.9 | 42.7 | 129 | 15.4 | 144 / 292 | 509 / 633 |
 
-- On 306 KB requests this change uses about a third of master's CPU per request and half of Go's, and adds about 20 ms to the time to first byte against Go's 36 to 40 ms and master's 79 to 97 ms. Its throughput (20 requests per second) is close to the 21.4 the fake upstream allows on its own.
-- 30 seconds after the load it holds 29 MB against master's 45 to 50 MB and Go's 80 to 82 MB. Peak RSS barely moved (63 to 64 MB against 66 to 67 MB): the peak is the requests in flight, and trimming only returns what they leave behind.
-- With 1.9 MB prompts master was more than three times slower than Go to first byte; this change's TTFB p50 is 40% lower than Go's, and it holds 43 MB after the run against Go's 184 MB and master's 158 MB.
-- Raw results, including the allocator and trim comparisons: [`bench/results/2026-10-04-messages.jsonl`](../bench/results/2026-10-04-messages.jsonl). The `session` field groups runs that were measured together.
+- 306 KB 요청에서 이번 변경은 요청당 CPU를 master의 약 3분의 1, Go의 절반만 씁니다. 첫 바이트까지 더하는 시간도 약 20 ms로, Go의 36~40 ms와 master의 79~97 ms보다 적습니다. 처리량(초당 20건)은 가짜 업스트림이 혼자 감당하는 21.4건에 가깝습니다.
+- 부하가 끝나고 30초 뒤에는 29 MB를 유지해 master의 45~50 MB, Go의 80~82 MB보다 적습니다. 최대 RSS는 거의 그대로입니다(63~64 MB 대 66~67 MB). 최대치는 처리 중인 요청이 만들고, 트림은 요청이 남긴 것만 커널로 돌려주기 때문입니다.
+- 1.9 MB 프롬프트에서는 master가 첫 바이트까지 걸리는 시간이 Go보다 세 배 이상 느렸습니다. 이번 변경의 TTFB p50은 Go보다 40% 낮고, 실행 뒤에 43 MB를 유지해 Go의 184 MB와 master의 158 MB보다 적습니다.
+- 할당자와 트림 비교를 포함한 원시 결과는 [`bench/results/2026-10-04-messages.jsonl`](../bench/results/2026-10-04-messages.jsonl)에 있습니다. `session` 필드는 함께 측정한 실행들을 묶습니다.
 
-## Field mix: Claude, Codex and count_tokens
+<a id="field-mix-claude-codex-and-count_tokens"></a>
+## 실사용 환경 조합: Claude, Codex, count_tokens
 
-Measured on 2026-10-06, after a field report from a Linux server (glibc, 2 request threads, session affinity off) that served a coding agent's Claude and Codex traffic, with 1 to 2 MB prompts, on 0.2.0. A sampler read `/proc` once a minute; by hour after start:
+2026-10-06에 측정했습니다. Linux 서버(glibc, 요청 스레드 2개, 세션 고정 끔)가 0.2.0에서 코딩 에이전트의 Claude와 Codex 트래픽을 1~2 MB 프롬프트로 처리한 뒤 올린 현장 보고가 계기였습니다. 표본 수집기는 1분에 한 번 `/proc`를 읽었습니다. 시작 뒤 시간대별 값은 다음과 같습니다.
 
-| Hour | RSS min / median / max (MB) | `VmHWM` (MB) |
+| 시간 | RSS 최저 / 중앙 / 최고 (MB) | `VmHWM` (MB) |
 | --- | --- | --- |
 | 0 | 26 / 31 / 54 | 148 |
 | 1 | 29 / 47 / 100 | 148 |
@@ -191,102 +211,110 @@ Measured on 2026-10-06, after a field report from a Linux server (glibc, 2 reque
 | 6 | 89 / 91 / 202 | 438 |
 | 7 | 89 / 89 / 405 | 439 |
 
-The floor (each hour's lowest sample) rose from 26 to 89 MB and the peaks reached 300 to 400 MB. These are field observations: the traffic, the config and the sampling cannot be reproduced on demand. The soak that CI ran on release tags (`bench/soak.sh` with the Claude soak's default load: streamed Claude requests of 100 to 500 KB from 8 sessions) sent no Codex requests, no count_tokens and no body over 500 KB, so it could not show this.
+바닥값(시간대마다 가장 낮은 표본)은 26 MB에서 89 MB로 올라갔고 최고값은 300~400 MB에 이르렀습니다. 이 값들은 현장 관찰이라 트래픽, 설정, 표본 수집을 원할 때 재현할 수 없습니다. CI가 릴리스 태그마다 돌리는 장시간 부하 시험(`bench/soak.sh`에 Claude 장시간 부하 시험의 기본 부하를 넣은 것. 세션 8개에서 100~500 KB Claude 스트리밍 요청)은 Codex 요청도, count_tokens도, 500 KB를 넘는 본문도 보내지 않아 이 현상을 보여 줄 수 없었습니다.
 
-### Setup
+<a id="setup-2"></a>
+### 측정 환경
 
-- [`bench/soak.sh`](../bench/soak.sh) with `MIX=field`, in a loopback-only network namespace. [`bench/messages/`](../bench/messages) is the fake upstream for both providers and the load generator. The server has one Claude API key and one Codex API key whose `base-url` is the fake upstream; a Claude API key on another origin has its count_tokens counted locally, as an OAuth login does.
-- Load: 4 concurrent sessions, 2 Claude (streamed `/v1/messages`, shaped as in the Claude soak) and 2 Codex (streamed `/v1/responses` for `gpt-5.5` through the Codex executor: 18 KB of instructions, 24 function tools, then reasoning items with encrypted content, function calls and their outputs). Each conversation grows from 200 KB to 2 MB in 100 KB steps, then a new one starts; requests averaged 1,019 to 1,028 KB. Before every 4th Claude turn the same body goes to `/v1/messages/count_tokens`, alternately for the Claude model and for `gpt-5.5` (a Claude client counting tokens for a Codex model). The fake upstream reads the whole request and streams 150 events 2 ms apart for either provider, ending in a tool call.
-- Batches of 160 turns (about 178 requests with the count_tokens calls). After each batch the server rests 20 seconds and its `VmRSS` is read: the resting floor. `VmRSS`, `VmHWM`, threads, CPU ticks and context switches are also sampled every 10 seconds. After 60 minutes of load the server idles for 300 seconds, then its context switches are counted over 30 more seconds, as `bench/idle.sh` counts them.
-- Builds: the 0.1.2 and 0.2.0 release binaries (`cliproxy-<version>-x86_64-unknown-linux-gnu.tar.gz`, checked against each release's `SHA256SUMS`) and this change, built on the runner with rustc 1.99.0. Each ran on its own GitHub-hosted Ubuntu 22.04 runner (4 vCPUs, so 0.1.2 starts 4 request threads and the others 2), all three at the same time, through `soak.yml`'s `releases` input. MB here is 1,024 kB as `/proc` reports it.
-- The runs in this section used an earlier version of the fake upstreams, whose tool-call fragments did not join into JSON (and, for Codex, did not join into the completed arguments); the load generator did not check them then. It does now. With the corrected fake upstreams the same binary measured the same: on the 2-vCPU machine described under Results, alternating the two versions (10 minutes each, two runs each, `vm2-mock-check-10min`), peak RSS was 159.5 and 155.4 MB against 159.2 and 163.8 MB, resting `RssAnon` 53.0 to 67.1 and 52.8 to 66.9 MB against 52.1 to 66.4 and 53.6 to 66.8 MB, and CPU 42.2 and 41.7 ms per request against 41.9 and 41.2. All four runs passed the soak's gates. The numbers below stand as measured.
+- [`bench/soak.sh`](../bench/soak.sh)를 `MIX=field`로, 루프백만 있는 네트워크 네임스페이스에서 실행합니다. [`bench/messages/`](../bench/messages)는 두 제공자의 가짜 업스트림과 부하 생성기를 겸합니다. 서버에는 `base-url`이 가짜 업스트림인 Claude API 키 하나와 Codex API 키 하나가 있습니다. 다른 출처의 Claude API 키는 OAuth 로그인과 마찬가지로 count_tokens를 로컬에서 셉니다.
+- 부하: 동시 세션 4개로, Claude 2개(스트리밍 `/v1/messages`, Claude 장시간 부하 시험과 같은 형태)와 Codex 2개(Codex 실행기를 거쳐 `gpt-5.5`용 스트리밍 `/v1/responses`. 18 KB 지시문, 함수 도구 24개, 그다음 암호화된 내용이 담긴 추론 항목과 함수 호출 및 그 출력)입니다. 대화마다 200 KB에서 2 MB까지 100 KB씩 커지고 그다음 새 대화가 시작됩니다. 요청 크기는 평균 1,019~1,028 KB였습니다. Claude 턴 네 번마다 한 번은 같은 본문을 `/v1/messages/count_tokens`로 보내는데, Claude 모델과 `gpt-5.5`에 번갈아 보냅니다(Claude 클라이언트가 Codex 모델의 토큰을 세는 경우). 가짜 업스트림은 요청 전체를 읽고 두 제공자 모두에 이벤트 150개를 2 ms 간격으로 보내며, 마지막은 도구 호출입니다.
+- 한 묶음은 턴 160개입니다(count_tokens 호출을 포함하면 약 178개 요청). 묶음마다 서버를 20초 쉬게 하고 `VmRSS`를 읽는데, 이것이 휴지 상태 바닥값입니다. `VmRSS`, `VmHWM`, 스레드, CPU 틱, 컨텍스트 스위치도 10초마다 표본으로 잽니다. 60분 부하 뒤에는 서버를 300초 유휴 상태로 두고, 그다음 30초 동안 컨텍스트 스위치를 세는데 `bench/idle.sh`가 세는 방식과 같습니다.
+- 빌드: 0.1.2와 0.2.0 릴리스 실행 파일(`cliproxy-<version>-x86_64-unknown-linux-gnu.tar.gz`, 각 릴리스의 `SHA256SUMS`와 대조)과 이번 변경을 러너에서 rustc 1.99.0으로 빌드했습니다. 각각 GitHub가 제공하는 Ubuntu 22.04 러너(vCPU 4개라 0.1.2는 요청 스레드를 4개 띄우고 나머지 둘은 2개를 띄웁니다)에서 `soak.yml`의 `releases` 입력으로 셋이 동시에 돌았습니다. 여기서 MB는 `/proc`가 보고하는 값 기준으로 1,024 kB입니다.
+- 이 절의 실행들은 가짜 업스트림의 이전 버전을 썼습니다. 그 버전은 도구 호출 조각을 JSON으로 합치지 않았고(Codex는 완성된 인자로도 합치지 않았습니다), 당시 부하 생성기는 이를 검사하지 않았습니다. 지금은 검사합니다. 고친 가짜 업스트림으로 같은 실행 파일을 재보니 값이 같았습니다. 결과 항목에서 설명하는 2 vCPU 장비에서 두 버전을 번갈아(각 10분, 각 2회, `vm2-mock-check-10min`) 돌렸을 때 최대 RSS는 159.5, 155.4 MB 대 159.2, 163.8 MB였고, 휴지 `RssAnon`은 53.0~67.1, 52.8~66.9 MB 대 52.1~66.4, 53.6~66.8 MB였으며, 요청당 CPU는 42.2, 41.7 ms 대 41.9, 41.2 ms였습니다. 네 번 모두 장시간 부하 시험의 게이트를 통과했습니다. 아래 숫자는 측정한 값 그대로입니다.
 
 ```sh
 MIX=field bench/soak.sh target/release/cliproxy 60 /tmp/soak-field
 ```
 
-### Results
+<a id="results-2"></a>
+### 결과
 
-60 minutes each; no request failed.
+각 60분이고 실패한 요청은 없습니다.
 
-| | 0.1.2 | 0.2.0 | This change |
+| | 0.1.2 | 0.2.0 | 이번 변경 |
 | --- | --- | --- | --- |
-| Requests (Claude / Codex / count_tokens) | 7,186 / 8,334 / 1,746 | 7,889 / 8,271 / 1,834 | 8,047 / 8,433 / 1,869 |
-| Resting RSS over the hour, lowest / highest (MB) | 132.3 / 157.9 | 128.2 / 145.4 | 80.6 / 97.6 |
-| Resting RSS in the first third, lowest / highest (MB) | 137.0 / 157.9 | 128.2 / 140.7 | 80.6 / 96.3 |
-| Resting RSS in the last third, lowest / highest (MB) | 135.6 / 157.1 | 131.3 / 139.4 | 80.6 / 97.6 |
-| RSS every 10 s, median / highest (MB) | 180.2 / 222.4 | 165.1 / 212.8 | 105.7 / 150.9 |
-| Peak RSS (`VmHWM`, MB) | 233.2 | 220.1 | 169.0 |
-| Server CPU per request (ms), own runner | 89.0 | 47.6 | 31.1 |
-| Threads under load | 8 | 4 | 4 |
-| After 300 s idle: RSS (MB), wakeups in 30 s, threads | 144.6, 2,913, 8 | 138.3, 4, 3 | 93.0, 3, 3 |
+| 요청 수 (Claude / Codex / count_tokens) | 7,186 / 8,334 / 1,746 | 7,889 / 8,271 / 1,834 | 8,047 / 8,433 / 1,869 |
+| 한 시간 동안의 휴지 RSS, 최저 / 최고 (MB) | 132.3 / 157.9 | 128.2 / 145.4 | 80.6 / 97.6 |
+| 앞 3분의 1 구간의 휴지 RSS, 최저 / 최고 (MB) | 137.0 / 157.9 | 128.2 / 140.7 | 80.6 / 96.3 |
+| 뒤 3분의 1 구간의 휴지 RSS, 최저 / 최고 (MB) | 135.6 / 157.1 | 131.3 / 139.4 | 80.6 / 97.6 |
+| 10초마다 잰 RSS, 중앙값 / 최고 (MB) | 180.2 / 222.4 | 165.1 / 212.8 | 105.7 / 150.9 |
+| 최대 RSS (`VmHWM`, MB) | 233.2 | 220.1 | 169.0 |
+| 요청당 서버 CPU (ms), 각자 러너 | 89.0 | 47.6 | 31.1 |
+| 부하 중 스레드 | 8 | 4 | 4 |
+| 300초 유휴 뒤: RSS (MB), 30초 동안의 웨이크업, 스레드 | 144.6, 2,913, 8 | 138.3, 4, 3 | 93.0, 3, 3 |
 
-CPU per request depends on the machine, and each build had a runner of its own, so the CPU row does not compare the builds. On one machine (a virtual machine with 2 vCPUs, Intel Xeon at 2.60 GHz, and 3.8 GB of memory, running Debian 12 with glibc 2.36 and Linux 6.1, shared by the server and the load generator; 10 minutes of the same load per build, one after another), the tokenizer change made no difference to CPU, and the memory differences held:
+요청당 CPU는 장비에 따라 다르고 빌드마다 러너가 따로 있었으므로, CPU 행으로 빌드를 비교할 수는 없습니다. 장비 하나에서(가상 머신, vCPU 2개, Intel Xeon 2.60 GHz, 메모리 3.8 GB, Debian 12에 glibc 2.36과 Linux 6.1, 서버와 부하 생성기가 함께 사용. 빌드마다 같은 부하를 10분씩 차례로 실행) 토크나이저 변경은 CPU에 차이를 만들지 않았고 메모리 차이는 그대로 유지되었습니다.
 
-| Same machine, 10 minutes | 0.1.2 | 0.2.0 | This change (2 runs) |
+| 같은 장비, 10분 | 0.1.2 | 0.2.0 | 이번 변경 (2회 실행) |
 | --- | --- | --- | --- |
-| Server CPU per request (ms) | 68.2 | 43.1 | 42.9, 44.1 |
-| Resting `RssAnon` (MB) | 102.3 to 114.6 | 99.0 to 108.2 | 54.0 to 66.0, 54.4 to 62.5 |
-| Peak RSS (`VmHWM`, MB) | 199.0 | 204.7 | 158.7, 158.3 |
+| 요청당 서버 CPU (ms) | 68.2 | 43.1 | 42.9, 44.1 |
+| 휴지 `RssAnon` (MB) | 102.3 to 114.6 | 99.0 to 108.2 | 54.0 to 66.0, 54.4 to 62.5 |
+| 최대 RSS (`VmHWM`, MB) | 199.0 | 204.7 | 158.7, 158.3 |
 
-- The resting floor stepped up once, in the first batch, and stayed flat for the hour on all three builds: on each, the last third's lowest and highest resting readings are within the soak's tolerance (10% plus 2 MB) of the first third's. The step is the tokenizers below. Over the hour this load did not reproduce a slow climb like the field report's. A plausible reading, not proven: there, Claude count_tokens, Codex count_tokens and streamed Claude requests to Codex models first ran hours apart, and each built its own tokenizer then.
-- Against 0.2.0, this change's resting RSS is 47.6 MB lower at its lowest and 47.8 MB lower at its highest, and its peak 51.1 MB lower.
-- 0.1.2 woke 2,913 times in 30 seconds after the load: its file watcher polled (see [Idle](#idle-wakeups-threads-and-memory)). Both later builds were back to 3 threads and 3 or 4 wakeups in 30 seconds.
+- 휴지 바닥값은 첫 묶음에서 한 번 올라간 뒤 세 빌드 모두 한 시간 내내 평평했습니다. 각 빌드에서 뒤 3분의 1 구간의 휴지 값 최저·최고는 앞 3분의 1 구간 값의 장시간 부하 시험 허용 범위(10%에 2 MB를 더한 값) 안에 있습니다. 이 계단은 아래에서 설명하는 토크나이저 때문입니다. 한 시간 동안 이 부하는 현장 보고처럼 서서히 올라가는 모습을 재현하지 않았습니다. 근거는 약하지만 그럴듯한 해석은 이렇습니다. 현장에서는 Claude count_tokens, Codex count_tokens, Codex 모델로 보내는 Claude 스트리밍 요청이 처음에는 몇 시간 간격으로 실행되었고, 그때마다 각자 토크나이저를 만들었습니다.
+- 0.2.0과 견주면 이번 변경의 휴지 RSS는 최저값이 47.6 MB, 최고값이 47.8 MB 낮고, 최대치는 51.1 MB 낮습니다.
+- 0.1.2는 부하 뒤 30초 동안 2,913번 깨어났습니다. 파일 감시기가 폴링을 했기 때문입니다([유휴](#idle-wakeups-threads-and-memory) 참고). 이후 두 빌드는 다시 스레드 3개로 돌아왔고 30초 동안 웨이크업이 3번 또는 4번이었습니다.
 
-### What the heap held
+<a id="what-the-heap-held"></a>
+### 힙에 남아 있던 것
 
-- Tokenizers, measured as the growth of `RssAnon` after a trim on a fresh server, one small request at a time: Claude count_tokens added 46.5 MB, Codex count_tokens for `gpt-5.5` 46.5 MB, for `gpt-4` 24.0 MB, and a Claude client's streamed request to `gpt-5.5` (whose `message_start` gets an o200k_base estimate of the request, as in Go) 47.1 MB: 164.1 MB of tokenizers on 0.2.0, and 163.8 MB on 0.1.2. Five modules kept seven lazily built `tiktoken_rs::CoreBPE` statics between them (five o200k_base, two cl100k_base), each built and kept for good. With one shared encoder per encoding the same sequence adds 46.8, 0, 24.1 and 0.2 MB: 71.0 MB.
-- heaptrack, on master with line tables, after two batches of 100 field-mix turns, both count_tokens paths included: 67.1 MB was still allocated at exit, 63.8 MB of it two o200k_base encoders (31.9 MB each, one built by Claude count_tokens and one by Codex count_tokens) and 1.7 MB the tokenizer regex's caches. Everything else came to 1.7 MB, the largest part being TLS root certificates (0.7 MB). Of the 31.9 MB per encoder, the encoder map and its keys are 9.6 MB, a decoder map and its values 9.6 MB, a sorted token list 5.9 MB and the regexes 6.8 MB, 5.9 MB of that 128 per-thread copies of the main one; counting never decodes. The 600,000 short token allocations at malloc's 32-byte minimum chunk make it 47 MB resident.
-- glibc held almost nothing back. `malloc_info` on master (without heaptrack) after three batches of 160 field-mix turns and 30 seconds idle: 31.5 MB free inside the arenas, already returned to the kernel by the server's heap trim, and 37.6 MB in five mmapped chunks (the encoders' hash tables). Calling `malloc_trim(0)` again through gdb changed `RssAnon` by 40 kB. The resting floor is live data.
+- 토크나이저. 새 서버에서 트림한 뒤 `RssAnon`이 얼마나 늘어나는지로 쟀고, 작은 요청을 하나씩 보냈습니다. Claude count_tokens는 46.5 MB, Codex count_tokens는 `gpt-5.5`에서 46.5 MB, `gpt-4`에서 24.0 MB를 늘렸습니다. Claude 클라이언트가 `gpt-5.5`로 보낸 스트리밍 요청(`message_start`에서 Go처럼 o200k_base로 요청을 추정합니다)은 47.1 MB였습니다. 합치면 0.2.0에서 토크나이저가 164.1 MB, 0.1.2에서 163.8 MB입니다. 다섯 모듈이 지연 생성되는 `tiktoken_rs::CoreBPE` 정적 값을 일곱 개나 나눠 들고 있었고(o200k_base 다섯, cl100k_base 둘), 각각 한 번 만들어지면 계속 남았습니다. 인코딩마다 인코더를 하나씩 공유하면 같은 순서가 46.8, 0, 24.1, 0.2 MB를 더합니다. 합쳐서 71.0 MB입니다.
+- heaptrack. 라인 테이블을 넣은 master에, 실사용 환경 조합 턴 100개씩 두 묶음을 돌린 뒤(두 count_tokens 경로 포함) 쟀습니다. 종료 시점에 67.1 MB가 할당된 채 남았고 그중 63.8 MB가 o200k_base 인코더 두 개(각 31.9 MB, 하나는 Claude count_tokens가, 하나는 Codex count_tokens가 만듦)였으며, 1.7 MB는 토크나이저 정규식의 캐시였습니다. 나머지 전부가 1.7 MB였고 그중 가장 큰 부분은 TLS 루트 인증서(0.7 MB)였습니다. 인코더 하나당 31.9 MB 중 인코더 맵과 그 키가 9.6 MB, 디코더 맵과 그 값이 9.6 MB, 정렬된 토큰 목록이 5.9 MB, 정규식이 6.8 MB였고, 그중 5.9 MB는 주 정규식을 스레드마다 128벌 복사한 것이었습니다. 토큰을 셀 때는 디코딩을 하지 않습니다. malloc의 최소 청크인 32바이트로 잡히는 600,000건의 짧은 토큰 할당이 이를 상주 47 MB로 만듭니다.
+- glibc는 거의 붙잡아 두지 않았습니다. heaptrack 없이 master에 실사용 환경 조합 턴 160개짜리 묶음 세 번을 돌리고 30초 유휴 상태를 둔 뒤 `malloc_info`를 보면, 아레나 안에서 31.5 MB가 놀고 있었고(서버의 힙 트림이 이미 커널로 돌려준 양), 37.6 MB는 mmap 청크 다섯 개(인코더의 해시 테이블)에 있었습니다. gdb로 `malloc_trim(0)`을 다시 호출해도 `RssAnon`은 40 kB만 달라졌습니다. 휴지 바닥값은 살아 있는 데이터입니다.
 
-### What was checked and ruled out, or left
+<a id="what-was-checked-and-ruled-out-or-left"></a>
+### 확인해서 배제한 것, 남겨 둔 것
 
-- Duplicate tokenizers: confirmed, and fixed by sharing one lazily built encoder per encoding. Go tokenizes at the same places (`helps.CountClaudeInputTokens` for Claude count_tokens and the `message_start` estimate, which share one codec behind a `sync.Once`; Codex, Meta and xAI `CountTokens`; `TokenizerForModel` for OpenAI-compatible counts), so the counts need the real encoders. Nothing is built until a count needs one, and the first count waits for it (0.15 s for o200k_base, 0.06 s for cl100k_base). Without count_tokens, native Claude requests (a Claude client to a Claude model) and Codex Responses requests build none: on a fresh server the first of each added 0.3 to 0.6 MB. The exception is a streamed Claude-format request to a non-Claude model, Codex included: as in Go, its `message_start` gets an estimate of the request's input tokens, which builds o200k_base.
-- Unbounded maps: every map on these routes is bounded by an entry count, a time window or the open connections, and the hour above shows no climb. Two have bounds far above a few MB. The Codex reasoning replay, used only for Claude-format clients of Codex models, keeps up to 10,240 sessions of up to 256 turns each and drops expired ones only when they are read or at that cap (Go also purges them on a timer); a Responses client never fills it. The [LCP session matcher](../crates/cpa-server/src/lcp.rs) is the other. It is used only with session affinity on, for requests that carry no session ID, and it is bounded by entry counts (Go's), not bytes. Driven directly with four interleaved sessions and a counting allocator, 150-turn conversations at one request every 3 seconds held 57.7 MB after an hour and then 60.7 to 67.0 MB (its 1-hour TTL), and 300-turn conversations at one request a second held 82.2 MB from 40 minutes on, before the TTL could expire anything, so its entry caps (4,096 groups, 262,144 prefixes) were what held it there. The field server runs with session affinity off, the default, so the matcher played no part in its report. Left as a general limit, with the numbers in a `ponytail:` note.
-- Fragmentation: ruled out for the resting floor (above). For peaks, glibc's dynamic mmap threshold lets body-sized buffers come from the arenas and stay resident until the next trim. On the 2-vCPU machine above (10 minutes of the field mix per setting, this change), a fixed `MALLOC_MMAP_THRESHOLD_` lowered the peak but cost CPU, and `MALLOC_ARENA_MAX=2` changed neither (the server and the load generator shared the 2 vCPUs, so CPU per request is higher than on the runners):
+- 토크나이저 중복: 확인했고, 인코딩마다 지연 생성되는 인코더를 하나씩 공유해 고쳤습니다. Go도 같은 자리에서 토큰을 셉니다(Claude count_tokens와 `message_start` 추정에는 `helps.CountClaudeInputTokens`를 쓰고, 이 둘은 `sync.Once` 뒤에서 코덱 하나를 공유합니다. Codex, Meta, xAI는 `CountTokens`, OpenAI 호환 집계에는 `TokenizerForModel`). 그래서 이 집계에는 실제 인코더가 필요합니다. 셀 때가 되어야 인코더를 만들고, 첫 집계는 인코더를 기다립니다(o200k_base는 0.15초, cl100k_base는 0.06초). count_tokens가 없으면 Claude 네이티브 요청(Claude 클라이언트에서 Claude 모델로)과 Codex Responses 요청은 인코더를 만들지 않습니다. 새 서버에서 이 둘의 첫 요청은 각각 0.3~0.6 MB를 늘렸습니다. 예외는 Claude 형식 요청을 Claude가 아닌 모델(Codex 포함)로 스트리밍할 때입니다. Go와 마찬가지로 `message_start`가 요청의 입력 토큰을 추정하고, 이때 o200k_base가 만들어집니다.
+- 크기 제한 없는 맵: 이 경로에 있는 모든 맵은 항목 수, 시간 창, 열린 연결 중 하나로 제한되어 있고 위의 한 시간 동안 늘어나지 않았습니다. 두 맵은 한계가 몇 MB보다 훨씬 위에 있습니다. Codex 추론 재생은 Codex 모델을 쓰는 Claude 형식 클라이언트에만 쓰이는데, 최대 256턴짜리 세션을 10,240개까지 들고 있으며, 만료된 것은 읽을 때나 이 상한에 닿았을 때만 버립니다(Go는 타이머로도 정리합니다). Responses 클라이언트는 이 맵을 채우지 않습니다. 나머지 하나는 [LCP 세션 매처](../crates/cpa-server/src/lcp.rs)입니다. 세션 고정을 켰을 때, 세션 ID가 없는 요청에만 씁니다. 바이트가 아니라 항목 수(Go의 값)로 제한됩니다. 세션 네 개를 교차해 돌리고 할당 횟수를 세는 할당자로 직접 돌려 보면, 3초에 요청 하나씩 보내는 150턴 대화는 한 시간 뒤 57.7 MB를 유지하다가 그 뒤 60.7~67.0 MB(TTL 1시간)가 되었습니다. 1초에 요청 하나씩 보내는 300턴 대화는 40분부터 82.2 MB를 유지했고, TTL이 무언가를 만료시키기 전이었습니다. 그래서 이 맵을 붙잡아 둔 것은 항목 상한(그룹 4,096개, 접두사 262,144개)이었습니다. 현장 서버는 기본값대로 세션 고정을 꺼서 이 매처가 보고에 관여하지 않았습니다. 일반적인 한계로 남겨 두었고, 숫자는 `ponytail:` 주석에 적었습니다.
+- 단편화: 휴지 바닥값에서는 배제했습니다(위 참조). 최대치 쪽에서는 glibc의 동적 mmap 임계값 때문에 본문 크기 버퍼가 아레나에서 나와 다음 트림까지 상주합니다. 위의 2 vCPU 장비에서(설정마다 실사용 환경 조합을 10분씩, 이번 변경 기준) `MALLOC_MMAP_THRESHOLD_`를 고정하면 최대치는 낮아졌지만 CPU가 더 들었고, `MALLOC_ARENA_MAX=2`는 둘 다 바뀌지 않았습니다(서버와 부하 생성기가 vCPU 2개를 함께 써서 러너보다 요청당 CPU가 높습니다).
 
-  | Setting | Resting `RssAnon` (MB) | Highest `RssAnon` sample (MB) | Peak RSS (`VmHWM`, MB) | CPU per request (ms) |
+  | 설정 | 휴지 `RssAnon` (MB) | `RssAnon` 표본 최고 (MB) | 최대 RSS (`VmHWM`, MB) | 요청당 CPU (ms) |
   | --- | --- | --- | --- | --- |
-  | glibc defaults, run 1 | 54.0 to 66.0 | 114.8 | 158.7 | 42.9 |
-  | glibc defaults, run 2 | 54.4 to 62.5 | 119.5 | 158.3 | 44.1 |
+  | glibc 기본값, 1회차 | 54.0 to 66.0 | 114.8 | 158.7 | 42.9 |
+  | glibc 기본값, 2회차 | 54.4 to 62.5 | 119.5 | 158.3 | 44.1 |
   | `MALLOC_MMAP_THRESHOLD_=1048576` | 51.9 to 52.4 | 91.9 | 131.9 | 51.2 |
   | `MALLOC_MMAP_THRESHOLD_=262144` | 52.0 to 52.2 | 84.9 | 124.7 | 56.1 |
   | `MALLOC_ARENA_MAX=2` | 51.8 to 59.2 | 111.8 | 155.0 | 42.6 |
 
-  A 1 MiB threshold took 26.6 MB (17%) off the peak for 16 to 19% more CPU per request, and 256 KiB 33.8 MB for 27 to 31% more: every large buffer then comes from fresh, zeroed pages. The server sets none of these; `MALLOC_MMAP_THRESHOLD_` in its environment remains an option for anyone who would trade that CPU for the lower peak.
-- Peak per request: the Claude route peaks at 6.0x its body (11,083,177 bytes of live heap for a 1,843,825-byte request), count_tokens on the same body at 7.3x (13,530,973 bytes, in 1,630,109 allocations) and the Codex route at 8.8x (16,783,275 bytes for 1,916,052). `crates/cpa-server/tests/alloc_budget.rs` now gates all three. Codex request shaping rewrites the body pass by pass, each pass a new copy; walking it once is a larger change, left with its numbers in a `ponytail:` note in `crates/cpa-exec/src/codex_request.rs`.
+  1 MiB 임계값은 요청당 CPU를 16~19% 더 쓰는 대신 최대치를 26.6 MB(17%) 낮췄고, 256 KiB는 27~31%를 더 쓰는 대신 33.8 MB 낮췄습니다. 그러면 큰 버퍼가 모두 새로 잡은 0으로 채워진 페이지에서 나옵니다. 서버는 이 중 아무 값도 설정하지 않습니다. CPU를 더 쓰고 최대치를 낮추겠다면 환경에 `MALLOC_MMAP_THRESHOLD_`를 두는 방법이 남아 있습니다.
+- 요청당 최대치: Claude 경로는 본문의 6.0배까지 올라갑니다(1,843,825바이트 요청에 살아 있는 힙 11,083,177바이트). 같은 본문의 count_tokens는 7.3배(13,530,973바이트, 할당 1,630,109회), Codex 경로는 8.8배(1,916,052바이트에 16,783,275바이트)입니다. 이제 `crates/cpa-server/tests/alloc_budget.rs`가 이 셋을 검사합니다. Codex 요청 다듬기는 본문을 단계마다 다시 쓰고, 단계마다 새 복사본을 만듭니다. 한 번만 훑게 고치는 것은 더 큰 변경이라 숫자와 함께 `crates/cpa-exec/src/codex_request.rs`의 `ponytail:` 주석에 남겨 두었습니다.
 
-### Gates
+<a id="gates"></a>
+### 게이트
 
-- `soak.yml` runs the field mix for an hour on every release tag, next to an hour of the Claude soak's load, and for 300 minutes every week. Either fails if any request fails or if the resting RSS climbs: the highest resting reading of the last third of the run more than 10% plus 2 MB above the highest of the first third, or the lowest of the last third that far above the lowest of the first third (a rising floor under peaks that do not rise). The field mix also fails if `VmHWM` ends above `soak.field.peak_hwm_kb` in [`bench/budgets.txt`](../bench/budgets.txt) (this change's 169.0 MB plus 20%, which 0.2.0 exceeds).
-- Raw results: [`bench/results/2026-10-06-field.jsonl`](../bench/results/2026-10-06-field.jsonl) holds one `bench/soak.sh` summary per run, with the resting readings' lowest and highest over the run and in its first and last thirds, and the requests by kind. Every resting reading behind them is in [`bench/results/2026-10-06-field-batches.tsv`](../bench/results/2026-10-06-field-batches.tsv). The `session` field groups the runs: `ci-runners-60min` (the three runners), `vm2-releases-10min`, `vm2-allocator-10min` and `vm2-mock-check-10min` (the 2-vCPU machine; the allocator runs name their setting in `env`, and the two without one are this change's same-machine runs), `tokenizer-steps` (`RssAnon` in kB after each request on a fresh server), `heaptrack` (bytes still allocated at exit, by site), `malloc-info`, and `lcp-matcher` (live heap by hour, in MB of 10^6 bytes as measured).
+- `soak.yml`는 릴리스 태그마다 실사용 환경 조합을 한 시간, Claude 장시간 부하 시험의 부하를 한 시간 돌리고, 매주 300분을 돌립니다. 둘 중 하나라도 요청이 실패하거나 휴지 RSS가 올라가면 실패로 처리합니다. 실행 뒤 3분의 1 구간의 휴지 값 최고가 앞 3분의 1 구간 최고보다 10%에 2 MB를 더한 값 넘게 높거나, 뒤 3분의 1 구간 최저가 앞 3분의 1 구간 최저보다 그만큼 높으면 실패입니다(최대치는 오르지 않는데 바닥값만 오르는 경우). 실사용 환경 조합은 `VmHWM`이 [`bench/budgets.txt`](../bench/budgets.txt)의 `soak.field.peak_hwm_kb`를 넘긴 채 끝나도 실패입니다(이번 변경의 169.0 MB에 20%를 더한 값이고, 0.2.0은 이 값을 넘습니다).
+- 원시 결과: [`bench/results/2026-10-06-field.jsonl`](../bench/results/2026-10-06-field.jsonl)에 실행마다 `bench/soak.sh` 요약이 하나씩 들어 있습니다. 실행 전체와 앞·뒤 3분의 1 구간에서 휴지 값의 최저·최고, 종류별 요청 수가 담겨 있습니다. 그 뒤의 모든 휴지 값은 [`bench/results/2026-10-06-field-batches.tsv`](../bench/results/2026-10-06-field-batches.tsv)에 있습니다. `session` 필드가 실행을 묶습니다. `ci-runners-60min`(러너 세 대), `vm2-releases-10min`, `vm2-allocator-10min`, `vm2-mock-check-10min`(2 vCPU 장비. 할당자 실행은 `env`에 설정 이름을 붙이고, 이름이 없는 둘은 이번 변경의 같은 장비 실행입니다), `tokenizer-steps`(새 서버에서 요청마다 잰 `RssAnon`, kB 단위), `heaptrack`(종료 시점에 남은 바이트, 발생 지점별), `malloc-info`, `lcp-matcher`(시간대별 살아 있는 힙, 측정한 대로 10^6바이트 기준 MB)입니다.
 
-## Claude latency: time added before the first byte
+<a id="claude-latency-time-added-before-the-first-byte"></a>
+## Claude 지연 시간: 첫 바이트 전에 더해지는 시간
 
-Measured on 2026-10-05: how long cliproxy-rs holds a streamed `/v1/messages` request before its first byte reaches the upstream, and before the first response byte reaches the client, for the Claude Code OAuth path (cloaking and the native TLS client) and the Claude API-key path, with the process's peak memory alongside.
+2026-10-05에 측정했습니다. cliproxy-rs가 스트리밍 `/v1/messages` 요청을 붙잡고 있다가 첫 바이트가 업스트림에 닿기까지, 그리고 첫 응답 바이트가 클라이언트에 닿기까지 걸리는 시간을 Claude Code OAuth 경로(cloaking과 네이티브 TLS 클라이언트)와 Claude API 키 경로에서 쟀습니다. 프로세스 최대 메모리도 함께 적었습니다.
 
-### Setup
+<a id="setup-3"></a>
+### 측정 환경
 
-- A virtual machine with 8 vCPUs (Intel Xeon at 2.60 GHz) and 16 GB of memory, running Debian 12 (glibc 2.36) with Linux 6.1. It is shared, so compare numbers measured in the same session.
-- "master" is `1849512` (0.1.2) with only the harness and its five trace marks added; "this change" is the branch described below. Both are release builds (thin LTO, one codegen unit) with line tables kept for profiling, rustc 1.99.0.
-- [`bench/latency.sh`](../bench/latency.sh) runs [`claude_latency`](../crates/cpa-server/examples/claude_latency.rs) in a loopback-only network namespace, once per path. It is one process with two Tokio runtimes of 4 workers each: one runs the production router, listener and Claude executor; the other runs a mock Anthropic upstream and a keep-alive HTTP/1.1 client. Sharing one process gives every timestamp the same monotonic clock.
-- OAuth path: a Claude Code OAuth credential (an `sk-ant-oat` token with its device and account IDs, so no profile fetch) and the production native TLS profile, with the executor's test hooks resolving `api.anthropic.com` to a local TLS mock that trusts a throwaway CA. Cloaking, cache_control handling, tool-name aliasing, signature sanitising and CCH signing all run. API-key path: a `claude-api-key` entry whose `base-url` is a plain HTTP mock.
-- Bodies: coding-agent conversations of 5,000, 50,000, 300,000 and 2,000,000 bytes (a system prompt with a cache breakpoint, tool definitions, assistant turns with signed thinking, text and `tool_use`, user `tool_result` turns), sent with `stream: true`. The mock reads the whole request and answers at once with a short SSE stream.
-- Per cell: 20 warm-up requests, then 200 measured, from 1 client or from 8 concurrent clients (25 each). The same requests are also sent straight to the mock; "added" is the proxied percentile minus the direct one. Two rounds, run master, this change, master, this change; each cell shows round 1, round 2.
-- First upstream byte: from the client starting the request to the mock's request handler (the request head has arrived). First client byte: to the first response body byte at the client.
-- Stages (1 client, p50): trace events (`target: "cpa_latency"`, level trace) at the route handler, the selected credential, the executor, the translated request and the finished upstream request, plus the mock's timestamps. The server's logging leaves them off unless `RUST_LOG` enables trace for that target (`RUST_LOG=cpa_latency=trace` prints them as log lines); its own debug setting stops at debug level.
-- Memory: the process's `VmHWM` after each body size. It covers the proxy, the mock and the client together, so it is an upper bound on the proxy's own peak, and it only grows through a run.
+- 가상 머신은 vCPU 8개(Intel Xeon 2.60 GHz)와 메모리 16 GB이고 Debian 12(glibc 2.36)에 Linux 6.1을 씁니다. 공유 장비라 같은 세션에서 측정한 숫자끼리 비교해야 합니다.
+- "master"는 `1849512`(0.1.2)에 측정 도구와 트레이스 표시 다섯 개만 더한 것입니다. "이번 변경"은 아래에서 설명하는 브랜치입니다. 둘 다 릴리스 빌드(thin LTO, 코드젠 유닛 하나)이고 프로파일링을 위해 라인 테이블을 남겼으며 rustc 1.99.0으로 빌드했습니다.
+- [`bench/latency.sh`](../bench/latency.sh)는 [`claude_latency`](../crates/cpa-server/examples/claude_latency.rs)를 루프백만 있는 네트워크 네임스페이스에서 경로마다 한 번씩 실행합니다. 프로세스 하나에 워커 4개짜리 Tokio 런타임 두 개가 들어 있습니다. 하나는 실제 라우터, 리스너, Claude 실행기를 돌리고 다른 하나는 모의 Anthropic 업스트림과 keep-alive HTTP/1.1 클라이언트를 돌립니다. 프로세스를 공유하기 때문에 모든 시각이 같은 단조 시계를 씁니다.
+- OAuth 경로: Claude Code OAuth 인증 정보(기기 ID와 계정 ID를 담은 `sk-ant-oat` 토큰이라 프로필을 받아 오지 않습니다)와 실제 네이티브 TLS 프로파일을 씁니다. 실행기의 테스트 훅이 `api.anthropic.com`을 임시 CA를 신뢰하는 로컬 TLS 모의 서버로 돌립니다. cloaking, cache_control 처리, 도구 이름 별칭, 서명 정리, CCH 서명이 모두 실행됩니다. API 키 경로: `base-url`이 평범한 HTTP 모의 서버인 `claude-api-key` 항목을 씁니다.
+- 본문: 5,000, 50,000, 300,000, 2,000,000바이트짜리 코딩 에이전트 대화입니다(캐시 분기점이 있는 시스템 프롬프트, 도구 정의, 서명된 thinking과 텍스트, `tool_use`가 들어간 어시스턴트 턴, 사용자 `tool_result` 턴). `stream: true`로 보냅니다. 모의 서버는 요청 전체를 읽고 짧은 SSE 스트림으로 곧바로 답합니다.
+- 칸마다: 예열 요청 20건을 보낸 뒤 200건을 측정합니다. 클라이언트 하나 또는 동시 클라이언트 8개(각 25건)로 보냅니다. 같은 요청을 모의 서버에 바로 보내기도 합니다. "added"는 프록시를 거친 백분위에서 직접 보낸 백분위를 뺀 값입니다. 두 라운드를 master, 이번 변경, master, 이번 변경 순서로 실행하고, 칸마다 1라운드, 2라운드 값을 적었습니다.
+- 업스트림 첫 바이트: 클라이언트가 요청을 시작한 순간부터 모의 서버의 요청 처리기에 닿을 때까지입니다(요청 헤드가 도착한 시점). 클라이언트 첫 바이트: 클라이언트가 첫 응답 본문 바이트를 받을 때까지입니다.
+- 단계(클라이언트 1개, p50): `target: "cpa_latency"`에 레벨 trace로 남기는 트레이스 이벤트를 경로 처리기, 선택된 인증 정보, 실행기, 변환된 요청, 완료된 업스트림 요청 지점에 두고, 모의 서버의 시각도 함께 씁니다. 서버 로깅은 그 대상에 `RUST_LOG`로 trace를 켜지 않으면 이 이벤트를 내보내지 않습니다(`RUST_LOG=cpa_latency=trace`로 켜면 로그 줄로 출력합니다). 서버 자체 디버그 설정은 debug 레벨에서 멈춥니다.
+- 메모리: 본문 크기마다 프로세스의 `VmHWM`입니다. 프록시, 모의 서버, 클라이언트를 모두 포함하므로 프록시 자체 최대치의 상한이고, 실행 중에는 줄어들지 않고 커지기만 합니다.
 
 ```sh
 bench/latency.sh /tmp/latency.jsonl
 N=200 SIZES=300000 CONC=8 bench/latency.sh /tmp/latency.jsonl
 ```
 
-### Results
+<a id="results-3"></a>
+### 결과
 
-Added to the first upstream byte, ms (round 1, round 2):
+업스트림 첫 바이트에 더해진 시간, ms(1라운드, 2라운드):
 
-| Path | Body | Clients | master p50 | master p99 | this change p50 | this change p99 |
+| 경로 | 본문 | 클라이언트 | master p50 | master p99 | 이번 변경 p50 | 이번 변경 p99 |
 | --- | --- | --- | --- | --- | --- | --- |
 | OAuth | 5 KB | 1 | 1.24, 1.28 | 1.76, 1.49 | 0.95, 1.05 | 1.21, 1.35 |
 | OAuth | 5 KB | 8 | 1.97, 1.86 | 3.42, 2.65 | 1.38, 1.37 | 2.23, 2.23 |
@@ -296,18 +324,18 @@ Added to the first upstream byte, ms (round 1, round 2):
 | OAuth | 300 KB | 8 | 29.21, 28.88 | 41.49, 41.93 | 8.05, 8.71 | 13.64, 12.86 |
 | OAuth | 2 MB | 1 | 139.67, 139.14 | 197.67, 167.40 | 44.87, 46.66 | 55.76, 55.78 |
 | OAuth | 2 MB | 8 | 217.47, 196.64 | 298.87, 268.67 | 55.60, 62.39 | 81.91, 82.17 |
-| API key | 5 KB | 1 | 0.66, 0.67 | 0.93, 0.87 | 0.48, 0.48 | 0.62, 0.70 |
-| API key | 5 KB | 8 | 0.92, 0.95 | 1.44, 1.52 | 0.66, 0.74 | 1.23, 1.21 |
-| API key | 50 KB | 1 | 2.65, 2.67 | 3.14, 4.05 | 1.20, 1.24 | 1.41, 1.47 |
-| API key | 50 KB | 8 | 4.36, 4.91 | 7.31, 8.68 | 1.95, 2.02 | 3.05, 3.09 |
-| API key | 300 KB | 1 | 11.12, 11.07 | 14.65, 18.23 | 3.83, 3.66 | 4.95, 4.33 |
-| API key | 300 KB | 8 | 15.34, 16.03 | 22.87, 23.64 | 4.68, 4.55 | 7.53, 7.35 |
-| API key | 2 MB | 1 | 75.10, 72.12 | 93.26, 96.28 | 24.14, 25.10 | 32.35, 33.21 |
-| API key | 2 MB | 8 | 106.64, 107.13 | 142.64, 142.68 | 31.19, 33.47 | 47.43, 44.68 |
+| API 키 | 5 KB | 1 | 0.66, 0.67 | 0.93, 0.87 | 0.48, 0.48 | 0.62, 0.70 |
+| API 키 | 5 KB | 8 | 0.92, 0.95 | 1.44, 1.52 | 0.66, 0.74 | 1.23, 1.21 |
+| API 키 | 50 KB | 1 | 2.65, 2.67 | 3.14, 4.05 | 1.20, 1.24 | 1.41, 1.47 |
+| API 키 | 50 KB | 8 | 4.36, 4.91 | 7.31, 8.68 | 1.95, 2.02 | 3.05, 3.09 |
+| API 키 | 300 KB | 1 | 11.12, 11.07 | 14.65, 18.23 | 3.83, 3.66 | 4.95, 4.33 |
+| API 키 | 300 KB | 8 | 15.34, 16.03 | 22.87, 23.64 | 4.68, 4.55 | 7.53, 7.35 |
+| API 키 | 2 MB | 1 | 75.10, 72.12 | 93.26, 96.28 | 24.14, 25.10 | 32.35, 33.21 |
+| API 키 | 2 MB | 8 | 106.64, 107.13 | 142.64, 142.68 | 31.19, 33.47 | 47.43, 44.68 |
 
-Added to the first client byte, ms (round 1, round 2):
+클라이언트 첫 바이트에 더해진 시간, ms(1라운드, 2라운드):
 
-| Path | Body | Clients | master p50 | master p99 | this change p50 | this change p99 |
+| 경로 | 본문 | 클라이언트 | master p50 | master p99 | 이번 변경 p50 | 이번 변경 p99 |
 | --- | --- | --- | --- | --- | --- | --- |
 | OAuth | 5 KB | 1 | 1.45, 1.53 | 1.98, 1.75 | 1.20, 1.34 | 1.50, 1.65 |
 | OAuth | 5 KB | 8 | 2.72, 2.62 | 4.58, 3.75 | 2.08, 2.18 | 3.32, 3.25 |
@@ -317,136 +345,145 @@ Added to the first client byte, ms (round 1, round 2):
 | OAuth | 300 KB | 8 | 40.32, 39.37 | 59.48, 58.48 | 11.36, 11.88 | 17.11, 17.14 |
 | OAuth | 2 MB | 1 | 140.88, 140.16 | 197.81, 166.79 | 45.86, 47.55 | 55.62, 56.23 |
 | OAuth | 2 MB | 8 | 266.26, 257.39 | 390.99, 388.20 | 75.57, 76.12 | 105.24, 107.34 |
-| API key | 5 KB | 1 | 0.84, 0.86 | 1.16, 1.08 | 0.65, 0.66 | 0.82, 0.95 |
-| API key | 5 KB | 8 | 1.38, 1.34 | 2.01, 2.20 | 1.09, 1.17 | 1.72, 1.80 |
-| API key | 50 KB | 1 | 2.94, 2.95 | 3.54, 4.32 | 1.47, 1.55 | 1.71, 1.78 |
-| API key | 50 KB | 8 | 6.01, 6.24 | 9.26, 10.68 | 3.00, 3.01 | 4.55, 4.62 |
-| API key | 300 KB | 1 | 11.40, 11.41 | 14.81, 18.30 | 4.13, 3.93 | 5.13, 4.41 |
-| API key | 300 KB | 8 | 21.31, 21.94 | 31.03, 32.60 | 6.46, 6.07 | 10.67, 9.21 |
-| API key | 2 MB | 1 | 76.22, 73.23 | 94.18, 96.34 | 24.90, 26.00 | 32.77, 35.01 |
-| API key | 2 MB | 8 | 138.66, 139.20 | 172.19, 203.58 | 39.86, 41.85 | 63.55, 54.68 |
+| API 키 | 5 KB | 1 | 0.84, 0.86 | 1.16, 1.08 | 0.65, 0.66 | 0.82, 0.95 |
+| API 키 | 5 KB | 8 | 1.38, 1.34 | 2.01, 2.20 | 1.09, 1.17 | 1.72, 1.80 |
+| API 키 | 50 KB | 1 | 2.94, 2.95 | 3.54, 4.32 | 1.47, 1.55 | 1.71, 1.78 |
+| API 키 | 50 KB | 8 | 6.01, 6.24 | 9.26, 10.68 | 3.00, 3.01 | 4.55, 4.62 |
+| API 키 | 300 KB | 1 | 11.40, 11.41 | 14.81, 18.30 | 4.13, 3.93 | 5.13, 4.41 |
+| API 키 | 300 KB | 8 | 21.31, 21.94 | 31.03, 32.60 | 6.46, 6.07 | 10.67, 9.21 |
+| API 키 | 2 MB | 1 | 76.22, 73.23 | 94.18, 96.34 | 24.90, 26.00 | 32.77, 35.01 |
+| API 키 | 2 MB | 8 | 138.66, 139.20 | 172.19, 203.58 | 39.86, 41.85 | 63.55, 54.68 |
 
-Where the time goes, one client, p50 in ms, round 1 / round 2 (master → this change):
+시간이 어디로 가는가. 클라이언트 하나, p50(ms), 1라운드 / 2라운드(master → 이번 변경):
 
-| Stage | OAuth 50 KB | OAuth 300 KB | OAuth 2 MB | API key 50 KB | API key 300 KB | API key 2 MB |
+| 단계 | OAuth 50 KB | OAuth 300 KB | OAuth 2 MB | API 키 50 KB | API 키 300 KB | API 키 2 MB |
 | --- | --- | --- | --- | --- | --- | --- |
-| Read the client body (client write, HTTP parse, routing, client key) | 0.13 / 0.12 → 0.12 / 0.13 | 0.19 / 0.19 → 0.19 / 0.20 | 0.88 / 0.85 → 0.80 / 0.80 | 0.11 / 0.11 → 0.11 / 0.12 | 0.20 / 0.20 → 0.21 / 0.20 | 1.81 / 0.92 → 0.76 / 1.62 |
-| Route and select a credential (model peek, session IDs, scheduler) | 0.67 / 0.68 → 0.21 / 0.21 | 1.79 / 1.78 → 0.44 / 0.45 | 9.64 / 9.31 → 1.95 / 1.98 | 0.69 / 0.69 → 0.22 / 0.23 | 1.80 / 1.79 → 0.47 / 0.45 | 9.45 / 9.27 → 2.02 / 2.02 |
-| Translate (Claude to Claude) | 0.03 / 0.03 → 0.03 / 0.02 | 0.18 / 0.18 → 0.18 / 0.19 | 1.52 / 1.54 → 1.48 / 1.44 | 0.04 / 0.03 → 0.03 / 0.04 | 0.18 / 0.14 → 0.19 / 0.17 | 1.85 / 0.59 → 0.45 / 1.50 |
-| Parse and rewrite (thinking, cloaking, cache_control, aliases, signatures, CCH, headers) | 3.96 / 4.03 → 1.79 / 1.79 | 18.39 / 18.44 → 5.69 / 6.05 | 127.36 / 127.16 → 40.50 / 42.25 | 1.69 / 1.69 → 0.72 / 0.73 | 8.80 / 8.76 → 2.85 / 2.73 | 61.95 / 60.99 → 20.07 / 20.07 |
-| Connection checkout, request head on the wire | 0.22 / 0.23 → 0.21 / 0.23 | 0.27 / 0.27 → 0.27 / 0.28 | 0.56 / 0.54 → 0.43 / 0.43 | 0.17 / 0.17 → 0.16 / 0.18 | 0.24 / 0.24 → 0.23 / 0.23 | 0.32 / 0.31 → 0.28 / 0.29 |
-| Request body on the wire | 0.04 / 0.04 → 0.04 / 0.04 | 0.17 / 0.18 → 0.19 / 0.18 | 1.47 / 1.46 → 1.39 / 1.39 | 0.00 / 0.00 → 0.00 / 0.00 | 0.00 / 0.00 → 0.00 / 0.00 | 0.42 / 0.43 → 0.37 / 0.38 |
-| Mock answer to the first client byte | 0.36 / 0.36 → 0.35 / 0.38 | 0.55 / 0.55 → 0.54 / 0.58 | 2.00 / 1.94 → 1.88 / 1.87 | 0.32 / 0.31 → 0.31 / 0.34 | 0.51 / 0.51 → 0.53 / 0.52 | 2.07 / 1.79 → 1.78 / 1.99 |
+| 클라이언트 본문 읽기(클라이언트 쓰기, HTTP 파싱, 라우팅, 클라이언트 키) | 0.13 / 0.12 → 0.12 / 0.13 | 0.19 / 0.19 → 0.19 / 0.20 | 0.88 / 0.85 → 0.80 / 0.80 | 0.11 / 0.11 → 0.11 / 0.12 | 0.20 / 0.20 → 0.21 / 0.20 | 1.81 / 0.92 → 0.76 / 1.62 |
+| 경로 결정과 인증 정보 선택(모델 확인, 세션 ID, 스케줄러) | 0.67 / 0.68 → 0.21 / 0.21 | 1.79 / 1.78 → 0.44 / 0.45 | 9.64 / 9.31 → 1.95 / 1.98 | 0.69 / 0.69 → 0.22 / 0.23 | 1.80 / 1.79 → 0.47 / 0.45 | 9.45 / 9.27 → 2.02 / 2.02 |
+| 변환(Claude에서 Claude로) | 0.03 / 0.03 → 0.03 / 0.02 | 0.18 / 0.18 → 0.18 / 0.19 | 1.52 / 1.54 → 1.48 / 1.44 | 0.04 / 0.03 → 0.03 / 0.04 | 0.18 / 0.14 → 0.19 / 0.17 | 1.85 / 0.59 → 0.45 / 1.50 |
+| 파싱과 재작성(thinking, cloaking, cache_control, 별칭, 서명, CCH, 헤더) | 3.96 / 4.03 → 1.79 / 1.79 | 18.39 / 18.44 → 5.69 / 6.05 | 127.36 / 127.16 → 40.50 / 42.25 | 1.69 / 1.69 → 0.72 / 0.73 | 8.80 / 8.76 → 2.85 / 2.73 | 61.95 / 60.99 → 20.07 / 20.07 |
+| 연결 꺼내기, 요청 헤드를 네트워크로 전송 | 0.22 / 0.23 → 0.21 / 0.23 | 0.27 / 0.27 → 0.27 / 0.28 | 0.56 / 0.54 → 0.43 / 0.43 | 0.17 / 0.17 → 0.16 / 0.18 | 0.24 / 0.24 → 0.23 / 0.23 | 0.32 / 0.31 → 0.28 / 0.29 |
+| 요청 본문을 네트워크로 전송 | 0.04 / 0.04 → 0.04 / 0.04 | 0.17 / 0.18 → 0.19 / 0.18 | 1.47 / 1.46 → 1.39 / 1.39 | 0.00 / 0.00 → 0.00 / 0.00 | 0.00 / 0.00 → 0.00 / 0.00 | 0.42 / 0.43 → 0.37 / 0.38 |
+| 모의 서버 응답부터 클라이언트 첫 바이트까지 | 0.36 / 0.36 → 0.35 / 0.38 | 0.55 / 0.55 → 0.54 / 0.58 | 2.00 / 1.94 → 1.88 / 1.87 | 0.32 / 0.31 → 0.31 / 0.34 | 0.51 / 0.51 → 0.53 / 0.52 | 2.07 / 1.79 → 1.78 / 1.99 |
 
-Peak resident memory of the whole benchmark process (proxy, mock and client together) after each body size, MB, round 1, round 2:
+벤치마크 프로세스 전체(프록시, 모의 서버, 클라이언트 포함)의 본문 크기별 최대 상주 메모리, MB, 1라운드, 2라운드:
 
-| Path | Build | 5 KB | 50 KB | 300 KB | 2 MB |
+| 경로 | 빌드 | 5 KB | 50 KB | 300 KB | 2 MB |
 | --- | --- | --- | --- | --- | --- |
 | OAuth | master | 22.7, 23.5 | 29.8, 29.8 | 56.9, 56.7 | 223.6, 222.6 |
-| OAuth | this change | 23.2, 23.2 | 29.6, 30.0 | 57.1, 57.5 | 219.4, 222.3 |
-| API key | master | 21.8, 21.6 | 27.7, 27.7 | 53.1, 54.0 | 185.2, 185.0 |
-| API key | this change | 21.6, 21.6 | 27.4, 28.0 | 54.2, 52.6 | 181.7, 182.2 |
+| OAuth | 이번 변경 | 23.2, 23.2 | 29.6, 30.0 | 57.1, 57.5 | 219.4, 222.3 |
+| API 키 | master | 21.8, 21.6 | 27.7, 27.7 | 53.1, 54.0 | 185.2, 185.0 |
+| API 키 | 이번 변경 | 21.6, 21.6 | 27.4, 28.0 | 54.2, 52.6 | 181.7, 182.2 |
 
-There is no connect or TLS handshake row: no measured sequential request opened a connection. Of the 12,800 measured proxied requests (6,400 per build), 2 opened one, both in this change's run (API key, 50 KB, 8 clients): a request that started before the previous connection was back in the pool. In the 2 MB API-key column, reading the client body and translating move by about 1 ms between rounds in both builds. The "mock answer" row includes the mock locating its request marker in the body, which the direct baseline pays too. Peak memory differs between the builds by no more than it differs between rounds of one build, about 2%.
+연결이나 TLS 핸드셰이크 행은 없습니다. 측정한 순차 요청 중 연결을 새로 연 것은 없었습니다. 측정한 프록시 요청 12,800건(빌드마다 6,400건) 중 2건이 연결을 새로 열었는데, 둘 다 이번 변경 실행에서 나왔습니다(API 키, 50 KB, 클라이언트 8개). 앞선 연결이 풀로 돌아오기 전에 시작된 요청이었습니다. 2 MB API 키 열에서 클라이언트 본문 읽기와 변환은 두 빌드 모두 라운드 사이에 약 1 ms씩 움직였습니다. "모의 서버 응답" 행에는 모의 서버가 본문에서 요청 표시를 찾는 시간이 들어 있고, 직접 보낸 기준선도 이 시간을 냅니다. 빌드 사이의 최대 메모리 차이는 한 빌드의 라운드 사이 차이(약 2%)를 넘지 않습니다.
 
-### Upstream connections
+<a id="upstream-connections"></a>
+### 업스트림 연결
 
-The Claude client for `api.anthropic.com` and Go's standard transport (API-key base URLs, OpenAI-compatible hosts) keep their connections between requests, before and after this change. The tests `native_client_reuses_its_connection` and `go_clients_reuse_connections` (HTTP/2 and HTTP/1.1) count the TCP connections a local TLS upstream accepts. Go reuses these too: its Claude Code transport is an `http.Transport` cached per proxy (`helps/utls_client.go`), keeping at most 2 idle connections per host (net/http's default).
+`api.anthropic.com`용 Claude 클라이언트와 Go의 표준 전송(API 키 base URL, OpenAI 호환 호스트)은 이번 변경 전후 모두 요청 사이에 연결을 유지합니다. `native_client_reuses_its_connection`와 `go_clients_reuse_connections`(HTTP/2와 HTTP/1.1) 테스트는 로컬 TLS 업스트림이 받아들인 TCP 연결 수를 셉니다. Go도 이 연결을 재사용합니다. Go의 Claude Code 전송은 프록시마다 캐시하는 `http.Transport`이고(`helps/utls_client.go`), 호스트마다 유휴 연결을 최대 2개까지 둡니다(net/http의 기본값).
 
-The Codex client for `chatgpt.com` opens a new TCP and TLS connection for every request, as Go's dedicated uTLS connection per request does. Keeping those connections is a separate change.
+`chatgpt.com`용 Codex 클라이언트는 요청마다 TCP와 TLS 연결을 새로 엽니다. Go가 요청마다 전용 uTLS 연결을 여는 것과 같습니다. 이 연결을 유지하는 일은 별도의 변경입니다.
 
-### What changed
+<a id="what-changed-1"></a>
+### 바꾼 것
 
-- gjson 0.8.1, which the Claude executor uses for most body reads, scanned JSON strings one byte at a time; almost all of a coding agent's prompt is string content. A patched copy in [`vendor/gjson`](../vendor/README.md) finds string ends with `memchr2`, and its validator does the same; results are unchanged and tested against the original functions. `cpa_common::json::valid` got the same string skip. Before this, `gjson::scan_squash` alone took 44% of the CPU in a `perf` profile of the OAuth path at 300 KB.
-- Session-ID extraction (run by the server and again by the executor) asked for about twenty top-level keys, each found by scanning the body. It now walks a valid JSON object's top level once and keeps borrowed slices of the roots it queries; values are decoded on lookup, other members are skipped without decoding, and a duplicate key, an escaped key, an invalid body or any other path scans as before.
-- The executor decodes UTF-8 with the fast validator before falling back to the lossy decoder, and the tool-name aliasing no longer copies its output once more.
-- The bytes sent upstream are unchanged: the gjson change is checked against the original functions, the session index against plain lookups, and the Claude, Codex and server test suites (including the Go golden tests) pass.
+- Claude 실행기가 본문 읽기 대부분에 쓰는 gjson 0.8.1은 JSON 문자열을 한 바이트씩 훑었습니다. 코딩 에이전트 프롬프트는 거의 전부가 문자열 내용입니다. [`vendor/gjson`](../vendor/README.md)의 패치한 사본은 `memchr2`로 문자열 끝을 찾고, 검증기도 같은 방식으로 합니다. 결과는 그대로이고 원래 함수와 대조해 테스트했습니다. `cpa_common::json::valid`에도 같은 문자열 건너뛰기를 넣었습니다. 이 변경 전에는 300 KB OAuth 경로의 `perf` 프로파일에서 `gjson::scan_squash` 하나가 CPU의 44%를 썼습니다.
+- 세션 ID 추출(서버가 한 번, 실행기가 다시 한 번)은 최상위 키 약 스무 개를 요청했고, 각각 본문을 훑어 찾았습니다. 이제는 올바른 JSON 객체의 최상위를 한 번만 훑고 조회한 루트의 빌린 슬라이스를 들고 있습니다. 값은 조회할 때 디코딩하고 다른 멤버는 디코딩하지 않고 건너뜁니다. 중복 키, 이스케이프된 키, 잘못된 본문, 그 밖의 경로는 예전처럼 훑습니다.
+- 실행기는 손실 있는 디코더로 넘어가기 전에 빠른 검증기로 UTF-8을 디코딩합니다. 도구 이름 별칭 처리도 결과를 한 번 더 복사하지 않습니다.
+- 업스트림으로 보내는 바이트는 달라지지 않았습니다. gjson 변경은 원래 함수와 대조해 검사했고, 세션 색인은 단순 조회와 대조했으며, Claude, Codex, 서버 테스트 모음(Go 골든 테스트 포함)이 통과합니다.
 
-### What is left
+<a id="what-is-left"></a>
+### 남은 것
 
-- At 50 KB the OAuth path adds about 2.3 ms before the first upstream byte and the API-key path 1.2 ms; at 300 KB, 6.7 to 7.0 ms and 3.7 to 3.8 ms. Most of it is "parse and rewrite": the Go-ported rules (thinking, cloaking, cache_control, tool aliases, signature sanitising, CCH signing, beta headers) each read the body again, and many return a new copy. In a `perf` profile of the OAuth path at 300 KB, the largest, signature sanitising and tool-name aliasing, take about 15% and 13% of it; the rest is spread over a dozen rules. Bringing 300 KB down to 1 to 2 ms means walking the body once for all of them.
-- With 8 clients, a 2 MB request also waits for other requests' preparation on its Tokio worker: on the OAuth path the median to the first upstream byte is 56 to 62 ms against 45 to 47 ms with one client. Preparation runs on the async worker; moving it to a blocking thread would hold a thread for every large request, so the remedy is less work per request.
-- Raw results: [`bench/results/2026-10-05-latency.jsonl`](../bench/results/2026-10-05-latency.jsonl).
+- 50 KB에서 OAuth 경로는 업스트림 첫 바이트 전에 약 2.3 ms를, API 키 경로는 1.2 ms를 더합니다. 300 KB에서는 6.7~7.0 ms와 3.7~3.8 ms입니다. 대부분이 "파싱과 재작성"입니다. Go에서 옮긴 규칙(thinking, cloaking, cache_control, 도구 별칭, 서명 정리, CCH 서명, 베타 헤더)이 각각 본문을 다시 읽고, 많은 규칙이 새 복사본을 반환합니다. 300 KB OAuth 경로의 `perf` 프로파일에서 가장 큰 규칙인 서명 정리와 도구 이름 별칭이 각각 15%와 13%를 차지하고, 나머지는 규칙 십여 개에 흩어져 있습니다. 300 KB를 1~2 ms로 낮추려면 이 규칙 전체가 본문을 한 번만 훑어야 합니다.
+- 클라이언트가 8개일 때는 2 MB 요청이 같은 Tokio 워커에서 다른 요청의 준비 작업을 기다리기도 합니다. OAuth 경로에서 업스트림 첫 바이트까지의 중앙값은 56~62 ms이고, 클라이언트가 하나일 때는 45~47 ms입니다. 준비 작업은 비동기 워커에서 돕니다. 이를 블로킹 스레드로 옮기면 큰 요청마다 스레드를 하나씩 붙잡게 되므로, 해법은 요청당 작업량을 줄이는 것입니다.
+- 원시 결과: [`bench/results/2026-10-05-latency.jsonl`](../bench/results/2026-10-05-latency.jsonl).
 
-## Idle: wakeups, threads and memory
+<a id="idle-wakeups-threads-and-memory"></a>
+## 유휴: 웨이크업, 스레드, 메모리
 
-Measured on 2026-10-06 on Linux, to see what a server costs while nobody uses it.
+2026-10-06에 Linux에서 측정했습니다. 아무도 쓰지 않을 때 서버가 얼마를 쓰는지 보기 위한 것입니다.
 
-### Setup
+<a id="setup-4"></a>
+### 측정 환경
 
-- A virtual machine with 4 vCPUs (Intel Xeon at 2.60 GHz) and 7.8 GB of memory, running Debian 12 (glibc 2.36) with Linux 6.1.
-- cliproxy-rs master at `1849512`, and the change that replaces the polling loops with file change notifications and deadline timers and starts two request threads by default. Both are release builds made with rustc 1.99.0 on that machine.
-- [`bench/idle.sh`](../bench/idle.sh) runs each server in a loopback-only network namespace with one OpenAI-compatible API key, one client key and 1 or 2,000 Claude credential files whose tokens are valid for 30 days, so none is due for refresh. Without `-local-model`, so the catalog downloads at start are attempted (and fail at once, with no network).
-- After a 30-second warm-up without requests, which outlasts the startup heap trim (5 to 10 seconds after start, on the blocking pool) and the pool's 10-second keep-alive, it sums the context switches of every thread alive across the next 30 seconds from `/proc/<pid>/task/*/status` (each one is a thread waking up), and reads the CPU ticks (1/100 s), the thread count at both ends and `VmRSS`. A thread that exits inside the window makes the run fail, since its wakeups would go uncounted.
+- 가상 머신은 vCPU 4개(Intel Xeon 2.60 GHz)와 메모리 7.8 GB이고 Debian 12(glibc 2.36)에 Linux 6.1을 씁니다.
+- cliproxy-rs master는 `1849512`이고, 비교 대상은 폴링 반복문을 파일 변경 알림과 기한 타이머로 바꾸고 요청 스레드를 기본 2개로 시작하는 변경입니다. 둘 다 그 장비에서 rustc 1.99.0으로 만든 릴리스 빌드입니다.
+- [`bench/idle.sh`](../bench/idle.sh)는 각 서버를 루프백만 있는 네트워크 네임스페이스에서 실행합니다. OpenAI 호환 API 키 하나, 클라이언트 키 하나, 30일 동안 유효한 토큰을 담은 Claude 인증 파일 1개 또는 2,000개를 두는데, 갱신할 때가 된 파일은 없습니다. `-local-model`을 주지 않아 시작할 때 카탈로그 내려받기를 시도합니다(네트워크가 없어 곧바로 실패합니다).
+- 요청 없이 30초를 예열한 뒤 다음 30초 동안 값을 모읍니다. 예열은 시작 힙 트림(시작 후 5~10초, 블로킹 풀에서 실행)과 풀의 10초 keep-alive보다 깁니다. `/proc/<pid>/task/*/status`에서 그 30초 동안 살아 있는 스레드의 컨텍스트 스위치를 모두 더하고(하나하나가 스레드가 깨어난 횟수입니다), CPU 틱(1/100초), 양끝의 스레드 수, `VmRSS`를 읽습니다. 측정 구간 안에서 스레드가 종료되면 그 스레드의 웨이크업을 세지 못하므로 실행을 실패로 처리합니다.
 
 ```sh
 bench/idle.sh target/release/cliproxy 1 30
 bench/idle.sh target/release/cliproxy 2000 30
 ```
 
-### Results
+<a id="results-4"></a>
+### 결과
 
-Median of three rounds.
+세 번 실행의 중앙값입니다.
 
-| Server | Auth files | Wakeups in 30 s | CPU ticks in 30 s | Threads | RSS (MB) |
+| 서버 | 인증 파일 | 30초 동안의 웨이크업 | 30초 동안의 CPU 틱 | 스레드 | RSS (MB) |
 | --- | --- | --- | --- | --- | --- |
-| master | 1 | 2,901 (97 a second) | 18 | 8 to 12 | 21.2 |
-| this change | 1 | 0 | 0 | 3 | 19.7 |
-| master | 2,000 | 1,109 | 3,005 (a whole core) | 9 to 10 | 71.3 |
-| this change | 2,000 | 0 | 0 | 3 | 70.2 |
+| master | 1 | 2,901(초당 97회) | 18 | 8 to 12 | 21.2 |
+| 이번 변경 | 1 | 0 | 0 | 3 | 19.7 |
+| master | 2,000 | 1,109 | 3,005(코어 하나 전체) | 9 to 10 | 71.3 |
+| 이번 변경 | 2,000 | 0 | 0 | 3 | 70.2 |
 
-- master's config watcher looked at every file 20 times a second. With 2,000 auth files that kept one core busy all the time; with one file it cost about 0.6% of a core. Each look went through the blocking thread pool, so it woke several threads. Smaller loops ran too: the 5-second refresh scan, the 1-second discovery check and the heap-trim thread's 5-second tick.
-- With this change no thread woke up in any 30-second window, with 1 or 2,000 files. The watcher sleeps until the kernel reports a change, the refresh loop until the next token is due (at most 10 minutes, to catch clock jumps), the discovery task until the config changes, and the heap trim, after one trim at startup, until a response or WebSocket turn ends; the 3-hour catalog refresh, and the 15-second advertisement refresh when discovery is on, still run. A blocking-pool thread exits 10 seconds after its last file or DNS task.
-- Threads drop from 8 to 12 (four request threads on this 4-vCPU machine, a heap-trim thread and blocking-pool threads that the watcher kept alive) to 3: the main thread and two request threads. The count was the same at both ends of every window, and no thread exited inside one.
-- Idle memory with one file is unchanged within the noise of these runs. The 2,000 credentials themselves cost about 50 MB on either build.
-- The change adds 112 KB of `.text` and 4 KB of `.rodata`; the binary grows from 40,162,216 to 40,307,912 bytes (0.4%). (This build also carries current master's other changes since `1849512`, so part of the growth is theirs.)
-- Raw results: [`bench/results/2026-10-06-idle.jsonl`](../bench/results/2026-10-06-idle.jsonl).
+- master의 설정 감시기는 파일마다 1초에 20번씩 확인했습니다. 인증 파일이 2,000개일 때는 코어 하나를 항상 바쁘게 만들었고, 파일이 하나일 때는 코어의 약 0.6%를 썼습니다. 확인할 때마다 블로킹 스레드 풀을 거쳐서 스레드 여러 개를 깨웠습니다. 더 작은 반복문도 돌았습니다. 5초 주기 갱신 스캔, 1초 주기 검색(discovery) 확인, 힙 트림 스레드의 5초 주기 확인입니다.
+- 이번 변경에서는 파일이 하나든 2,000개든 어떤 30초 구간에서도 스레드가 깨어나지 않았습니다. 감시기는 커널이 변경을 알릴 때까지 잠들고, 갱신 반복문은 다음 토큰이 만료될 때까지(시계가 튀는 경우를 잡으려고 최대 10분), 검색 작업은 설정이 바뀔 때까지, 힙 트림은 시작할 때 한 번 트림한 뒤 응답이나 WebSocket 턴이 끝날 때까지 쉽니다. 3시간 주기 카탈로그 갱신과, 검색(discovery)을 켰을 때의 15초 주기 네트워크 광고(advertise) 갱신은 계속 돕니다. 블로킹 풀 스레드는 마지막 파일 작업이나 DNS 작업이 끝나고 10초 뒤에 종료합니다.
+- 스레드는 8~12개에서 3개로 줄었습니다. 8~12개는 이 4 vCPU 장비의 요청 스레드 4개, 힙 트림 스레드, 감시기가 살려 둔 블로킹 풀 스레드입니다. 3개는 메인 스레드와 요청 스레드 2개입니다. 모든 구간의 양끝에서 스레드 수가 같았고, 구간 안에서 종료된 스레드는 없었습니다.
+- 파일이 하나일 때의 유휴 메모리는 이 실행들의 잡음 범위 안에서 달라지지 않았습니다. 인증 정보 2,000개 자체가 두 빌드 모두 약 50 MB를 씁니다.
+- 이번 변경은 `.text` 112 KB와 `.rodata` 4 KB를 더합니다. 실행 파일은 40,162,216바이트에서 40,307,912바이트로 커집니다(0.4%). (이 빌드에는 `1849512` 이후 현재 master의 다른 변경도 들어 있어, 커진 부분의 일부는 그쪽 몫입니다.)
+- 원시 결과: [`bench/results/2026-10-06-idle.jsonl`](../bench/results/2026-10-06-idle.jsonl).
 
-### Against Go, idle
+<a id="against-go-idle"></a>
+### Go와 비교, 유휴 상태
 
-The `go-comparison` job in [`idle.yml`](../.github/workflows/idle.yml) runs `bench/idle.sh` on a GitHub-hosted Ubuntu 22.04 runner for CLIProxyAPI v8.0.10 (the release binary) and for cliproxy-rs, on the same config: one OpenAI-compatible API key and no credential files. Each gets 30 seconds of warm-up and then 300 seconds of samples. Two runs on 2026-10-05, cliproxy-rs with the changes above:
+[`idle.yml`](../.github/workflows/idle.yml)의 `go-comparison` 작업은 GitHub가 제공하는 Ubuntu 22.04 러너에서 CLIProxyAPI v8.0.10(릴리스 실행 파일)과 cliproxy-rs에 `bench/idle.sh`를 같은 설정으로 돌립니다. OpenAI 호환 API 키 하나만 있고 인증 파일은 없습니다. 각각 30초 예열한 뒤 300초 동안 표본을 모읍니다. 2026-10-05에 두 번 실행했고, cliproxy-rs에는 위의 변경을 넣었습니다.
 
-| Server | Wakeups per minute | CPU ms per hour | Threads | RSS (MB) |
+| 서버 | 분당 웨이크업 | 시간당 CPU ms | 스레드 | RSS (MB) |
 | --- | --- | --- | --- | --- |
 | CLIProxyAPI v8.0.10 | 7.6 and 7.2 | 120 and 120 | 9 | 46.1 and 46.0 |
 | cliproxy-rs | 0 and 0 | 0 and 0 | 3 | 21.9 and 21.5 |
 
-CPU time is read in clock ticks of 10 ms, so Go's figure is one tick in five minutes in each run. The weekly job publishes these numbers in its summary.
+CPU 시간은 10 ms 클럭 틱으로 읽으므로, Go의 값은 각 실행에서 5분에 한 틱입니다. 주간 작업은 이 숫자를 요약에 올립니다.
 
-### Two request threads under load
+<a id="two-request-threads-under-load"></a>
+### 부하가 걸린 상태의 요청 스레드 2개
 
-The same machine and builds, with `bench/messages.sh` (the Claude soak load: 8 sessions of 100 to 500 KB streamed requests, 1,200 requests per run). The server and the load share all 4 vCPUs, so master starts 4 request threads and this change 2. Two runs each, alternating.
+같은 장비와 빌드에 `bench/messages.sh`를 씁니다(Claude 장시간 부하 시험 부하: 100~500 KB 스트리밍 요청을 세션 8개로 보내고 실행마다 요청 1,200건). 서버와 부하가 vCPU 4개를 모두 함께 쓰므로 master는 요청 스레드를 4개, 이번 변경은 2개로 시작합니다. 각각 두 번씩 번갈아 실행했습니다.
 
 ```sh
 N=1200 C=8 SERVER_CPUS=0-3 LOAD_CPUS=0-3 bench/messages.sh /tmp/soak rust target/release/cliproxy
 ```
 
-| Server | Run | Peak RSS (MB) | RSS 30 s later (MB) | CPU s | Requests/s | TTFB p50 / p99 (ms) |
+| 서버 | 회차 | 최대 RSS (MB) | 30초 후 RSS (MB) | CPU 초 | 초당 요청 수 | TTFB p50 / p99 (ms) |
 | --- | --- | --- | --- | --- | --- | --- |
 | master | 1 | 63.2 | 29.5 | 27.0 | 20.3 | 15.5 / 33.3 |
-| this change | 1 | 57.1 | 25.2 | 24.3 | 20.4 | 14.9 / 35.9 |
+| 이번 변경 | 1 | 57.1 | 25.2 | 24.3 | 20.4 | 14.9 / 35.9 |
 | master | 2 | 63.1 | 26.5 | 26.9 | 20.3 | 15.5 / 30.7 |
-| this change | 2 | 57.9 | 27.9 | 24.1 | 20.4 | 15.0 / 40.1 |
+| 이번 변경 | 2 | 57.9 | 27.9 | 24.1 | 20.4 | 15.0 / 40.1 |
 
-- With two request threads the peak was about 6 MB (9%) lower and the server used about 10% less CPU for the same requests. Throughput is set by the fake upstream and did not change.
-- Memory 30 seconds after the load was not measurably different in these short runs. The larger effect reported from long-running services (one glibc arena per busy thread, each holding freed memory) needs hours of varied load to show, which this test does not reproduce.
-- The 99th percentile time to first byte was 3 to 9 ms higher with two threads; the median did not move. `worker-threads` or `TOKIO_WORKER_THREADS` raises the count where that matters.
-- Raw results: [`bench/results/2026-10-05-workers.jsonl`](../bench/results/2026-10-05-workers.jsonl).
+- 요청 스레드가 2개일 때 최대치는 약 6 MB(9%) 낮았고, 같은 요청에 서버가 쓴 CPU는 약 10% 적었습니다. 처리량은 가짜 업스트림이 정하기 때문에 달라지지 않았습니다.
+- 이 짧은 실행들에서는 부하가 끝나고 30초 뒤 메모리가 잴 만하게 달라지지 않았습니다. 오래 돌아가는 서비스에서 보고된 더 큰 효과(바쁜 스레드마다 glibc 아레나가 하나씩 생기고, 각 아레나가 해제된 메모리를 붙잡아 둠)는 다양한 부하를 몇 시간 걸려야 나타나며, 이 시험은 그것을 재현하지 않습니다.
+- 첫 바이트까지 걸린 시간의 99번째 백분위는 스레드 2개일 때 3~9 ms 높았고, 중앙값은 움직이지 않았습니다. 이 값이 중요할 때는 `worker-threads`나 `TOKIO_WORKER_THREADS`로 스레드 수를 늘리면 됩니다.
+- 원시 결과: [`bench/results/2026-10-05-workers.jsonl`](../bench/results/2026-10-05-workers.jsonl).
 
-## History
+<a id="history"></a>
+## 이력
 
-Four runs on 2026-10-03 with the same method and machine. The Go column gives the Go result measured in each run, which shows how much the machine itself varied between runs.
+2026-10-03에 같은 방법과 장비로 네 번 실행했습니다. Go 열은 실행마다 측정한 Go 값이고, 장비 자체가 실행 사이에 얼마나 달라지는지 보여 줍니다.
 
-| Scenario | Run 1 | Run 2 | Run 3 | 0.1.0 | Go, per run |
+| 시나리오 | 1회차 | 2회차 | 3회차 | 0.1.0 | Go, 실행별 |
 | --- | --- | --- | --- | --- | --- |
-| chat, requests per second | 1,402 | 1,403 | 1,307 | 1,168 | 1,677 / 1,696 / 1,859 / 1,568 |
-| chat-stream, streams per second | 627 | 956 | 944 | 833 | 989 / 940 / 1,038 / 916 |
-| messages-stream, streams per second | 640 | 913 | 830 | 793 | 607 / 613 / 657 / 564 |
-| Idle memory | 13.8 MB | 14.8 MB | 17.4 MB | 17.3 MB | 44.6 / 45.1 / 44.1 / 44.7 MB |
-| Binary | 29.6 MB | 33.0 MB | 35.9 MB | 35.9 MB | 69.1 MB |
+| chat, 초당 요청 수 | 1,402 | 1,403 | 1,307 | 1,168 | 1,677 / 1,696 / 1,859 / 1,568 |
+| chat-stream, 초당 스트림 수 | 627 | 956 | 944 | 833 | 989 / 940 / 1,038 / 916 |
+| messages-stream, 초당 스트림 수 | 640 | 913 | 830 | 793 | 607 / 613 / 657 / 564 |
+| 유휴 메모리 | 13.8 MB | 14.8 MB | 17.4 MB | 17.3 MB | 44.6 / 45.1 / 44.1 / 44.7 MB |
+| 실행 파일 | 29.6 MB | 33.0 MB | 35.9 MB | 35.9 MB | 69.1 MB |
 
-- Run 1: cliproxy-rs did not yet set `TCP_NODELAY` on client connections (Go sets it on every connection), so each small SSE write waited for the client's acknowledgement and the fast streaming tests were latency-bound rather than CPU-bound.
-- Run 2: `TCP_NODELAY` set; cliproxy-rs wrote no access log yet.
-- Run 3 and 0.1.0: cliproxy-rs writes Go's access log, request-log capture is wired in (off in this config), and usage reporting follows Go's contract. Since run 2, Go's lead on non-streaming requests grew from about 20% to 34 to 42%.
+- 1회차: cliproxy-rs가 아직 클라이언트 연결에 `TCP_NODELAY`를 설정하지 않아(Go는 모든 연결에 설정합니다), 작은 SSE 쓰기가 매번 클라이언트의 확인을 기다렸습니다. 그래서 빠른 스트리밍 시험은 CPU가 아니라 지연 시간이 한계였습니다.
+- 2회차: `TCP_NODELAY`를 설정했고, cliproxy-rs는 아직 액세스 로그를 쓰지 않았습니다.
+- 3회차와 0.1.0: cliproxy-rs가 Go와 같은 액세스 로그를 쓰고, 요청 기록 수집이 연결되었으며(이 설정에서는 꺼져 있음) 사용량 보고가 Go의 계약을 따릅니다. 2회차 이후로 스트리밍 없는 요청에서 Go의 우위가 약 20%에서 34~42%로 커졌습니다.
 
-Raw results: [`bench/results/`](../bench/results).
+원시 결과: [`bench/results/`](../bench/results).
