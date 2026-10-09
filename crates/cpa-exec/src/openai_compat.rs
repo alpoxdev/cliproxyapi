@@ -91,7 +91,7 @@ async fn images_error(upstream: wire::Upstream, with_retry: bool, capture: &wire
     }
 }
 
-fn status_error(status: u16, headers: http::HeaderMap, body: &[u8], with_retry: bool) -> ExecError {
+pub(crate) fn status_error(status: u16, headers: http::HeaderMap, body: &[u8], with_retry: bool) -> ExecError {
     let mut error = status_err(status, String::from_utf8_lossy(body));
     if with_retry {
         error.retry_after = payload::retry_after(status, &headers, body, SystemTime::now());
@@ -136,7 +136,7 @@ fn not_registered(what: &str, from: Format, to: Format) -> ExecError {
 /// (no target executor): Codex-client rewrites, then the pair or its compat variant.
 // ponytail: the configuration-update intent is not exposed by crate::codex_client
 // (owner: Codex), so thinking always sees `updates_changed: false`.
-fn translate_body(
+pub(crate) fn translate_body(
     req: &ExecRequest,
     cfg: &Config,
     target: Format,
@@ -151,7 +151,7 @@ fn translate_body(
 }
 
 /// `opts.OriginalRequest`, else the payload.
-fn original_payload(req: &ExecRequest) -> &[u8] {
+pub(crate) fn original_payload(req: &ExecRequest) -> &[u8] {
     if req.original_body.is_empty() {
         &req.body
     } else {
@@ -161,7 +161,7 @@ fn original_payload(req: &ExecRequest) -> &[u8] {
 
 /// `helps.ApplyPayloadConfigWithRequest` (no target executor) on the translated body;
 /// `original` is the translated original request.
-fn apply_payload_rules(
+pub(crate) fn apply_payload_rules(
     cfg: &Config,
     req: &ExecRequest,
     model: &str,
@@ -188,7 +188,7 @@ fn apply_payload_rules(
 }
 
 /// `helps.ApplyRequestThinking` with the capabilities bound to this attempt.
-fn apply_thinking(
+pub(crate) fn apply_thinking(
     body: Vec<u8>,
     req: &ExecRequest,
     target: Format,
@@ -519,7 +519,7 @@ pub(crate) fn prepare_images_payload(
 }
 
 /// `helps.PayloadRequestedModel`: the client's model, else the execution model.
-fn route_model(req: &ExecRequest) -> &str {
+pub(crate) fn route_model(req: &ExecRequest) -> &str {
     if req.requested_model.trim().is_empty() {
         req.model.trim()
     } else {
@@ -608,7 +608,7 @@ fn count_tokens(credential: &Credential, req: &ExecRequest, cfg: &Config) -> Res
 }
 
 /// Same-format passthrough when no pair is registered: one `data:` event per frame.
-struct Identity;
+pub(crate) struct Identity;
 
 impl StreamTranslator for Identity {
     fn event(&mut self, event: &[u8]) -> Result<Vec<Bytes>, cpa_translate::Error> {

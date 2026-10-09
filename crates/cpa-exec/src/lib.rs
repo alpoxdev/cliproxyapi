@@ -38,6 +38,8 @@ mod codex_testkit;
 mod codex_tls;
 mod codex_tokens;
 mod codex_ws;
+pub mod command_code;
+pub mod command_code_auth;
 pub mod devin;
 pub mod devin_auth;
 pub mod devin_models;
@@ -134,6 +136,7 @@ pub struct GoogleExecutors {
 pub struct OpenAIExecutors {
     pub compat: openai_compat::OpenAICompatExecutor,
     pub xai: xai::XaiExecutor,
+    pub command_code: command_code::CommandCodeExecutor,
 }
 
 /// Executors for the device-login providers, grouped so adding one does not touch every
@@ -159,6 +162,7 @@ impl Executors {
             meta::PROVIDER => self.devices.meta.execute(credential, req, cfg).await,
             devin::PROVIDER => self.devices.devin.execute(credential, req, cfg).await,
             p if openai_compat::handles(p) => self.openai.compat.execute(credential, req, cfg).await,
+            command_code::PROVIDER => self.openai.command_code.execute(credential, req, cfg).await,
             p if gemini::handles(p) => self.google.gemini.execute(credential, req, cfg).await,
             p if vertex::handles(p) => self.google.vertex.execute(credential, req, cfg).await,
             p if aistudio::handles(p) => self.google.aistudio.execute(credential, req, cfg).await,
@@ -254,7 +258,7 @@ impl Executors {
     pub fn supports(&self, provider: &str) -> bool {
         matches!(
             provider,
-            "claude" | "codex" | meta::PROVIDER | xai::PROVIDER | devin::PROVIDER
+            "claude" | "codex" | meta::PROVIDER | xai::PROVIDER | devin::PROVIDER | command_code::PROVIDER
         ) || kimi::PROVIDERS.contains(&provider)
             || openai_compat::handles(provider)
             || gemini::handles(provider)

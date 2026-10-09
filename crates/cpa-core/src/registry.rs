@@ -8,6 +8,7 @@
 
 use std::sync::LazyLock;
 
+pub mod command_code;
 pub mod devin;
 pub mod dynamic;
 

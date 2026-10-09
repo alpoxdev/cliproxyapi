@@ -921,6 +921,7 @@ pub fn models_for(cfg: &Config, aliases: &HashMap<String, Vec<OAuthAlias>>, c: &
         "meta" => with_config(channel("meta"), "meta", "meta", "meta"),
         // Go `registry.GetDevinModels()`: the live Devin catalog, never config models.
         "devin" => super::devin::models().iter().map(Spec::from_static).collect(),
+        "command-code" => super::command_code::models().iter().map(Spec::from_static).collect(),
         _ => Vec::new(),
     };
     let models = apply_excluded(models, &excluded);
