@@ -354,6 +354,7 @@ pub(crate) async fn auth_url(State(state): State<Arc<Management>>, RawQuery(raw)
         "meta" => start_meta(state).await,
         "xai" => start_xai(state).await,
         "devin" => start_devin(state).await,
+        "command-code" | "commandcode" => start_command_code(state).await,
         // Go `ServePluginAuthURL`: a plugin auth provider's login, else not found.
         _ => {
             let raw = raw_query.as_deref().unwrap_or_default();
@@ -648,6 +649,76 @@ async fn start_devin(state: Arc<Management>) -> Response {
             &worker,
             &flow,
             "devin",
+            record,
+            write,
+            "Failed to save authentication tokens",
+        )
+        .await;
+        settle(&worker, &flow, outcome);
+    });
+    started(url, sid)
+}
+
+/// Command Code sign-in (no Go counterpart): the studio page posts the new API key to a
+/// loopback server on this machine; a key pasted through `/oauth/callback` as `code`
+/// works when the browser is elsewhere. Either way the key is checked with `whoami`.
+async fn start_command_code(state: Arc<Management>) -> Response {
+    use cpa_exec::command_code_auth::{
+        CALLBACK_PORT, CallbackServer, Identity, auth_url, login_record, random_state, whoami, write_login,
+    };
+    let Some(sid) = random_state() else {
+        return fail(StatusCode::INTERNAL_SERVER_ERROR, "failed to generate state parameter");
+    };
+    let Ok(mut server) = CallbackServer::start(&sid, CALLBACK_PORT).await else {
+        return fail(StatusCode::INTERNAL_SERVER_ERROR, "failed to start callback server");
+    };
+    let url = auth_url(server.port, &sid);
+    state.oauth.register(&sid, "command-code");
+    let worker = state.clone();
+    let flow = sid.clone();
+    tokio::spawn(async move {
+        let received = tokio::select! {
+            cb = server.results.recv() => cb.map(|c| (c.api_key, Some(Identity { user_id: c.user_id, user_name: c.user_name }), c.key_name)),
+            cb = next_callback(&worker, &flow, "command-code") => match cb {
+                Some(cb) if !cb.error.is_empty() => {
+                    settle(&worker, &flow, Outcome::Failed("Command Code authorization denied".into()));
+                    return;
+                }
+                Some(cb) if cb.state != flow => {
+                    settle(&worker, &flow, Outcome::Failed("State code error".into()));
+                    return;
+                }
+                Some(cb) => Some((cb.code, None, "manual".to_owned())),
+                None => return,
+            },
+            () = cancelled(&worker, &flow, "command-code") => return,
+        };
+        let Some((key, claimed, key_name)) = received else {
+            return;
+        };
+        let base = worker
+            .login_base
+            .clone()
+            .unwrap_or_else(|| cpa_exec::command_code::DEFAULT_BASE_URL.to_owned());
+        let identity = match whoami(&login_client(&worker), &base, &key).await {
+            Some(identity) => identity,
+            None => match claimed {
+                Some(identity) => identity,
+                None => {
+                    return settle(
+                        &worker,
+                        &flow,
+                        Outcome::Failed("Command Code rejected the API key".into()),
+                    );
+                }
+            },
+        };
+        let record = login_record(&key, &identity, &key_name, chrono::Utc::now().timestamp_millis());
+        let write = |dir: PathBuf, record| write_login(&dir, &record).map_err(|e| exec_text(&e));
+        let outcome = save_if_pending(
+            &worker,
+            &flow,
+            "command-code",
             record,
             write,
             "Failed to save authentication tokens",

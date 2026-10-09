@@ -268,6 +268,7 @@ fn semantics(provider: &str, executor_type: &str) -> Semantics {
         "qwen",
         "deepseek",
         "openrouter",
+        "command-code",
     ]
     .iter()
     .any(|m| value.contains(m))
@@ -1501,6 +1502,7 @@ fn executor_identity(c: &cpa_core::credential::Credential) -> (String, &'static 
         "meta" => "MetaExecutor",
         "xai" => "XAIExecutor",
         "devin" => "DevinExecutor",
+        "command-code" => "CommandCodeExecutor",
         _ => {
             return (cpa_core::registry::dynamic::provider_key(c), "OpenAICompatExecutor");
         }

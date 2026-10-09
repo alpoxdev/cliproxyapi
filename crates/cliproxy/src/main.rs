@@ -79,6 +79,9 @@ struct Args {
     /// Login to Meta using OAuth
     #[arg(long)]
     meta_login: bool,
+    /// Login to Command Code (browser sign-in, the Command Code CLI login, or a pasted API key)
+    #[arg(long)]
+    command_code_login: bool,
     /// Discover local AI gateways and CPA instances on the LAN
     #[arg(long)]
     discover: bool,
@@ -300,7 +303,7 @@ fn go_parse_bool(v: &str) -> Option<bool> {
 /// Go `argvEnablesBoolFlag`: a pre-parse scan (stops at the first non-flag) used to
 /// keep stdout clean for `--discover-json`.
 fn argv_enables_bool_flag(args: &[String], name: &str) -> bool {
-    const BOOL_FLAGS: [&str; 16] = [
+    const BOOL_FLAGS: [&str; 17] = [
         "codex-login",
         "codex-device-login",
         "claude-login",
@@ -311,6 +314,7 @@ fn argv_enables_bool_flag(args: &[String], name: &str) -> bool {
         "xai-login",
         "devin-login",
         "meta-login",
+        "command-code-login",
         "discover",
         "discover-json",
         "home-disable-cluster-discovery",
@@ -987,6 +991,7 @@ fn command_mode(args: &Args) -> bool {
         || args.xai_login
         || args.devin_login
         || args.meta_login
+        || args.command_code_login
 }
 
 /// Go's TUI client mode: a pure management client; the server runs elsewhere.
@@ -1243,6 +1248,16 @@ async fn command(args: &Args, config: &Config) -> anyhow::Result<bool> {
     }
     if args.meta_login {
         cpa_exec::meta_auth::login(config, args.no_browser).await?;
+        return Ok(true);
+    }
+    if args.command_code_login {
+        if let Err(error) = cpa_exec::command_code_auth::login(config, args.no_browser, args.oauth_callback_port).await
+        {
+            tracing::error!(
+                "Command Code authentication failed: {}",
+                String::from_utf8_lossy(&error.body)
+            );
+        }
         return Ok(true);
     }
     Ok(false)

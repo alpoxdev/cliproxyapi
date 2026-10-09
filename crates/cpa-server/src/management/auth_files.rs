@@ -1645,12 +1645,16 @@ pub(crate) async fn model_definitions(UrlPath(channel): UrlPath<String>) -> Resp
     if channel.is_empty() {
         return fail(StatusCode::BAD_REQUEST, "channel is required");
     }
-    match channel_models(&channel) {
+    let models = match channel.to_lowercase().as_str() {
+        "command-code" | "commandcode" => Some(cpa_core::registry::command_code::definitions()),
+        _ => channel_models(&channel).cloned(),
+    };
+    match models {
         Some(models) => reply_ordered(
             StatusCode::OK,
             [
                 ("channel", channel.to_lowercase().into()),
-                ("models", Value::Array(models.clone())),
+                ("models", Value::Array(models)),
             ],
         ),
         None => reply(
