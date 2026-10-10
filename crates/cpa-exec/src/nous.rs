@@ -553,6 +553,69 @@ mod tests {
         assert_eq!(base_url_of(&r.metadata), INFERENCE_URL);
     }
 
+    async fn portal_replying(status: u16, body: String) -> (String, std::sync::Arc<std::sync::Mutex<String>>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = format!("http://{}", listener.local_addr().unwrap());
+        let seen: std::sync::Arc<std::sync::Mutex<String>> = Default::default();
+        let sink = seen.clone();
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = vec![0u8; 16384];
+            let n = socket.read(&mut buf).await.unwrap();
+            *sink.lock().unwrap() = String::from_utf8_lossy(&buf[..n]).into_owned();
+            let reply = format!(
+                "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        (addr, seen)
+    }
+
+    fn nous_credential(refresh: &str) -> Credential {
+        Credential::from_file(
+            std::path::Path::new("/a"),
+            std::path::Path::new("/a/n.json"),
+            json!({"type": "nous", "access_token": "old", "refresh_token": refresh, "expired": "2000-01-01T00:00:00Z"})
+                .as_object()
+                .unwrap()
+                .clone(),
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_refresh_sends_the_token_in_the_header_and_stores_the_rotated_pair() {
+        let now = chrono::Utc::now().timestamp();
+        let access = jwt(json!({"scope": SCOPE, "exp": now + 3600}));
+        let (portal, seen) =
+            portal_replying(200, json!({"access_token": access, "refresh_token": "r2"}).to_string()).await;
+        let ex = NousExecutor::default().with_portal(&portal);
+        assert!(ex.needs_prepare_at(&nous_credential("r1"), &Config::default(), chrono::Utc::now()));
+        let patch = ex.prepare(&nous_credential("r1"), &Config::default()).await.unwrap();
+        assert_eq!(patch.set["refresh_token"], "r2");
+        assert_eq!(patch.set["access_token"], json!(access));
+        let raw = seen.lock().unwrap().to_ascii_lowercase();
+        assert!(raw.contains("x-nous-refresh-token: r1"), "{raw}");
+        assert!(
+            !raw.contains("refresh_token=r1"),
+            "the token must not travel in the body: {raw}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failed_refresh_changes_nothing_so_the_consumed_token_is_never_replayed() {
+        let (portal, _) = portal_replying(400, r#"{"error":"invalid_grant"}"#.to_owned()).await;
+        let ex = NousExecutor::default().with_portal(&portal);
+        let err = ex
+            .prepare(&nous_credential("r1"), &Config::default())
+            .await
+            .unwrap_err();
+        assert_eq!(err.status, 400);
+        assert!(!String::from_utf8_lossy(&err.body).contains("r1"));
+    }
+
     fn base_url_of(m: &Map<String, Value>) -> String {
         let mut c =
             Credential::from_file(std::path::Path::new("/a"), std::path::Path::new("/a/n.json"), m.clone()).unwrap();

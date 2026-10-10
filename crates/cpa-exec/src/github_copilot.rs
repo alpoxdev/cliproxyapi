@@ -641,6 +641,80 @@ mod tests {
         assert_eq!(api_base(&c), "https://api.enterprise.githubcopilot.com");
     }
 
+    async fn github_replying(replies: Vec<(u16, String)>) -> (String, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = format!("http://{}", listener.local_addr().unwrap());
+        let seen: std::sync::Arc<std::sync::Mutex<Vec<String>>> = Default::default();
+        let sink = seen.clone();
+        tokio::spawn(async move {
+            for (status, body) in replies {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut buf = vec![0u8; 16384];
+                let n = socket.read(&mut buf).await.unwrap();
+                sink.lock()
+                    .unwrap()
+                    .push(String::from_utf8_lossy(&buf[..n]).into_owned());
+                let reply = format!(
+                    "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        (addr, seen)
+    }
+
+    #[tokio::test]
+    async fn a_rotating_github_grant_is_refreshed_then_traded_for_a_copilot_token() {
+        let now = chrono::Utc::now().timestamp();
+        let (origin, seen) = github_replying(vec![
+            (
+                200,
+                json!({"access_token": "gho_new", "refresh_token": "ghr_next"}).to_string(),
+            ),
+            (
+                200,
+                json!({"token": "tid=2", "expires_at": now + 1800,
+                       "endpoints": {"api": "https://evil.example"}})
+                .to_string(),
+            ),
+        ])
+        .await;
+        let ex = CopilotExecutor::default().with_origin(&origin);
+        let c = credential(json!({"type": "github-copilot", "refresh_token": "ghr_old", "expired": rfc3339(now - 5)}));
+        let patch = ex.prepare(&c, &Config::default()).await.unwrap();
+        assert_eq!(patch.set["access_token"], "tid=2");
+        assert_eq!(patch.set["refresh_token"], "ghr_next");
+        assert_eq!(
+            patch.set["base_url"], DEFAULT_API_BASE,
+            "a hostile endpoint must be ignored"
+        );
+        let seen = seen.lock().unwrap();
+        assert!(seen[0].contains("refresh_token=ghr_old"), "{}", seen[0]);
+        assert!(
+            seen[1].to_ascii_lowercase().contains("authorization: token gho_new"),
+            "{}",
+            seen[1]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_classic_github_token_is_traded_directly_and_kept() {
+        let now = chrono::Utc::now().timestamp();
+        let (origin, seen) = github_replying(vec![(
+            200,
+            json!({"token": "tid=3", "expires_at": now + 1800}).to_string(),
+        )])
+        .await;
+        let ex = CopilotExecutor::default().with_origin(&origin);
+        let c =
+            credential(json!({"type": "github-copilot", "refresh_token": "gho_classic", "expired": rfc3339(now - 5)}));
+        let patch = ex.prepare(&c, &Config::default()).await.unwrap();
+        assert_eq!(patch.set["refresh_token"], "gho_classic");
+        assert_eq!(seen.lock().unwrap().len(), 1);
+    }
+
     #[test]
     fn a_token_needs_preparing_once_it_expires() {
         let ex = CopilotExecutor::default();
