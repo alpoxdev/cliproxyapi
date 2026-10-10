@@ -18,6 +18,8 @@
 //! Go sends it and recovers on 401.
 
 pub mod aistudio;
+pub mod antigravity;
+pub mod antigravity_auth;
 pub mod catalog_etag;
 pub mod claude;
 pub mod claude_login;
@@ -48,6 +50,7 @@ mod devin_wire;
 pub mod gemini;
 mod gemini_payload;
 mod gemini_stream;
+pub mod github_copilot;
 mod home_replay;
 pub mod kimi;
 pub mod kimi_auth;
@@ -59,6 +62,7 @@ pub mod meta;
 pub mod meta_auth;
 mod meta_codex;
 mod meta_wire;
+pub mod nous;
 pub mod oauth;
 pub mod openai_compat;
 mod openai_compat_go;
@@ -129,6 +133,7 @@ pub struct GoogleExecutors {
     pub vertex: vertex::VertexExecutor,
     /// `aistudio` sessions on the `/v1/ws` relay, which the server route shares.
     pub aistudio: aistudio::AiStudioExecutor,
+    pub antigravity: antigravity::AntigravityExecutor,
 }
 
 /// OpenAI-wire executors, grouped like [`DeviceExecutors`].
@@ -137,6 +142,8 @@ pub struct OpenAIExecutors {
     pub compat: openai_compat::OpenAICompatExecutor,
     pub xai: xai::XaiExecutor,
     pub command_code: command_code::CommandCodeExecutor,
+    pub nous: nous::NousExecutor,
+    pub copilot: github_copilot::CopilotExecutor,
 }
 
 /// Executors for the device-login providers, grouped so adding one does not touch every
@@ -163,9 +170,12 @@ impl Executors {
             devin::PROVIDER => self.devices.devin.execute(credential, req, cfg).await,
             p if openai_compat::handles(p) => self.openai.compat.execute(credential, req, cfg).await,
             command_code::PROVIDER => self.openai.command_code.execute(credential, req, cfg).await,
+            nous::PROVIDER => self.openai.nous.execute(credential, req, cfg).await,
+            github_copilot::PROVIDER => self.openai.copilot.execute(credential, req, cfg).await,
             p if gemini::handles(p) => self.google.gemini.execute(credential, req, cfg).await,
             p if vertex::handles(p) => self.google.vertex.execute(credential, req, cfg).await,
             p if aistudio::handles(p) => self.google.aistudio.execute(credential, req, cfg).await,
+            antigravity::PROVIDER => self.google.antigravity.execute(credential, req, cfg).await,
             xai::PROVIDER => self.openai.xai.execute(credential, req, cfg, false).await,
             other => Err(no_executor(other)),
         }
@@ -258,12 +268,20 @@ impl Executors {
     pub fn supports(&self, provider: &str) -> bool {
         matches!(
             provider,
-            "claude" | "codex" | meta::PROVIDER | xai::PROVIDER | devin::PROVIDER | command_code::PROVIDER
+            "claude"
+                | "codex"
+                | meta::PROVIDER
+                | xai::PROVIDER
+                | devin::PROVIDER
+                | command_code::PROVIDER
+                | nous::PROVIDER
+                | github_copilot::PROVIDER
         ) || kimi::PROVIDERS.contains(&provider)
             || openai_compat::handles(provider)
             || gemini::handles(provider)
             || vertex::handles(provider)
             || aistudio::handles(provider)
+            || provider == antigravity::PROVIDER
     }
 
     /// Go `authHasRefreshCredential`: whether an upstream 401 on `credential` should be
@@ -313,6 +331,9 @@ impl Executors {
             meta::PROVIDER => self.devices.meta.needs_prepare_at(credential, cfg, now),
             xai::PROVIDER => self.openai.xai.needs_prepare_at(credential, cfg, now),
             devin::PROVIDER => self.devices.devin.needs_prepare_at(credential, cfg, now),
+            nous::PROVIDER => self.openai.nous.needs_prepare_at(credential, cfg, now),
+            github_copilot::PROVIDER => self.openai.copilot.needs_prepare_at(credential, cfg, now),
+            antigravity::PROVIDER => self.google.antigravity.needs_prepare_at(credential, cfg, now),
             _ => false,
         }
     }
@@ -356,6 +377,9 @@ impl Executors {
             meta::PROVIDER => self.devices.meta.prepare(credential, cfg).await,
             xai::PROVIDER => self.openai.xai.prepare(credential, cfg).await,
             devin::PROVIDER => self.devices.devin.prepare(credential, cfg).await,
+            nous::PROVIDER => self.openai.nous.prepare(credential, cfg).await,
+            github_copilot::PROVIDER => self.openai.copilot.prepare(credential, cfg).await,
+            antigravity::PROVIDER => self.google.antigravity.prepare(credential, cfg).await,
             other => Err(no_executor(other)),
         }
     }

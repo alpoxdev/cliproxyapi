@@ -250,8 +250,22 @@ impl OpenAICompatExecutor {
 
     /// Execute (`stream` false) and ExecuteStream (`stream` true) for chat and compact.
     async fn chat(&self, credential: &Credential, req: ExecRequest, cfg: &Config) -> Result<ExecResponse, ExecError> {
-        let base_model = parse_suffix(&req.model).model_name;
         let (base_url, api_key) = credentials(credential);
+        self.chat_with(credential, req, cfg, &base_url, &api_key, &[]).await
+    }
+
+    /// [`Self::chat`] against an explicit endpoint and key, for providers that sign in with
+    /// OAuth but speak OpenAI Chat. `extra` headers are set after the defaults.
+    pub(crate) async fn chat_with(
+        &self,
+        credential: &Credential,
+        req: ExecRequest,
+        cfg: &Config,
+        base_url: &str,
+        api_key: &str,
+        extra: &[(&str, String)],
+    ) -> Result<ExecResponse, ExecError> {
+        let base_model = parse_suffix(&req.model).model_name;
         if base_url.is_empty() {
             return Err(missing_base_url());
         }
@@ -300,14 +314,17 @@ impl OpenAICompatExecutor {
         if req.usage.enabled() {
             req.usage.request(target, &body);
         }
-        let mut headers = base_headers(&api_key, "application/json");
+        let mut headers = base_headers(api_key, "application/json");
+        for (name, value) in extra {
+            headers.set(name, value.clone());
+        }
         apply_custom(&mut headers, credential, &req);
         if req.stream {
             headers.set("Accept", "text/event-stream");
             headers.set("Cache-Control", "no-cache");
         }
         let client = self.clients.for_credential(credential, cfg);
-        let url = endpoint(&base_url, path);
+        let url = endpoint(base_url, path);
         let capture = wire::Capture::request(
             &req,
             credential,
