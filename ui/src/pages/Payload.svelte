@@ -33,7 +33,7 @@
 </div>
 
   <div class="seg" role="group" aria-label={t("pl.kind")}>
-    {#each kinds as k}<button aria-pressed={kind === k} onclick={() => (kind = k)}>{k}<b>{(payload[k] || []).length || ""}</b></button>{/each}
+    {#each kinds as k}<button aria-pressed={kind === k} onclick={() => (kind = k)}>{t(`pl.name.${k}` as Key)}<b>{(payload[k] || []).length || ""}</b></button>{/each}
   </div>
   <Load res={store.config} what={t("what.payload")}>
     {#snippet children()}
@@ -58,7 +58,7 @@
               </li>
             {/each}
           </ul>
-        {:else}<p class="note"><span class="lamp off"></span>{t("pl.noRules", { kind })}</p>{/if}
+        {:else}<p class="note"><span class="lamp off"></span>{t("pl.noRules", { kind: t(`pl.name.${kind}` as Key) })}</p>{/if}
         <form class="stack" onsubmit={add}>
           <div class="form">
             <label class="field">{t("pl.model")}<input required bind:value={form.model} /></label>
