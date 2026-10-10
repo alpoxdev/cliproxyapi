@@ -4,6 +4,7 @@
   import { readPath, label, mask, sum, type Data, type Buckets } from "../core";
   import Grille from "../Grille.svelte";
   import Load from "../Load.svelte";
+  import { t } from "../lang.svelte";
 
   const families = ["claude", "codex", "gemini", "vertex", "openai-compatibility", "interactions", "xai", "meta"];
   let family = $state("claude"),
@@ -30,50 +31,50 @@
     e.preventDefault();
     const group: Data = { name: form.name.trim(), keys: [{ "api-key": form.key.trim() }] };
     if (form.url.trim()) group["base-url"] = form.url.trim();
-    write([...groups, group], "Group added.").then((ok) => ok && (form = { name: "", url: "", key: "" }));
+    write([...groups, group], t("pv.groupAdded")).then((ok) => ok && (form = { name: "", url: "", key: "" }));
   }
 </script>
 
 <div class="head">
-  <h1>Provider keys</h1>
+  <h1>{t("pv.title")}</h1>
   {#if groups.length}<button class="key quiet" aria-pressed={reveal} onclick={() => (reveal = !reveal)}
-      >{reveal ? "Hide keys" : "Show keys"}</button
+      >{reveal ? t("common.hideKeys") : t("common.showKeys")}</button
     >{/if}
-  <a class="key" href="#config"><svg class="i" aria-hidden="true"><use href="#i-edit" /></svg>Edit in Configuration</a>
+  <a class="key" href="#config"><svg class="i" aria-hidden="true"><use href="#i-edit" /></svg>{t("common.edit")}</a>
 </div>
 
-<div class="seg" role="group" aria-label="Provider">
+<div class="seg" role="group" aria-label={t("pv.provider")}>
   {#each families as f}<button aria-pressed={family === f} onclick={() => (family = f)}
-      >{label(f)}<b>{readPath(store.config.data || {}, `api-keys/${f}`, []).length || ""}</b></button
+      >{label(f, t)}<b>{readPath(store.config.data || {}, `api-keys/${f}`, []).length || ""}</b></button
     >{/each}
 </div>
 
-  <Load res={store.config} what="Providers">
+  <Load res={store.config} what={t("what.providers")}>
     {#snippet children()}
       {#if groups.length}
         <ul class="list groups">
           {#each groups as g, i (i)}
             <li class="stack">
               <div class="section-head">
-                <h2>{g.name || `Group ${i + 1}`}</h2>
-                {#if g.disabled}<span class="row legend"><span class="lamp off"></span>Disabled</span>{/if}
-                {#if compat}<button class="key small" disabled={store.busy} onclick={() => write(groups.map((x, n) => (n === i ? { ...x, disabled: !x.disabled } : x)), g.disabled ? "Group enabled." : "Group disabled.")}
-                    >{g.disabled ? "Enable" : "Disable"}</button
+                <h2>{g.name || t("pv.group", { n: i + 1 })}</h2>
+                {#if g.disabled}<span class="row legend"><span class="lamp off"></span>{t("common.disabled")}</span>{/if}
+                {#if compat}<button class="key small" disabled={store.busy} onclick={() => write(groups.map((x, n) => (n === i ? { ...x, disabled: !x.disabled } : x)), g.disabled ? t("pv.groupEnabled") : t("pv.groupDisabled"))}
+                    >{g.disabled ? t("common.enable") : t("common.disable")}</button
                   >{/if}
                 <button
                   class="key small quiet danger"
                   disabled={store.busy}
-                  onclick={() => confirm(`Delete group ${g.name || i + 1} and its keys?`) && write(groups.filter((_, n) => n !== i), "Group deleted.")}
-                  >Delete</button
+                  onclick={() => confirm(t("pv.deleteAsk", { name: g.name || i + 1 })) && write(groups.filter((_, n) => n !== i), t("pv.groupDeleted"))}
+                  >{t("common.delete")}</button
                 >
               </div>
-              <p class="legend mono">{g["base-url"] || "Provider default endpoint"}</p>
+              <p class="legend mono">{g["base-url"] || t("pv.default")}</p>
               {#each g.keys || [] as k}
-                {@const t = traffic(g, k)}
+                {@const tr = traffic(g, k)}
                 <div class="item key-row">
                   <code class="grow ellipsis">{reveal ? k["api-key"] : mask(String(k["api-key"] || ""))}</code>
-                  <span class="legend">weight {k.weight ?? 1}</span>
-                  {#if t}<Grille data={t} {max} /><span class="num count">{sum(t.total).toLocaleString()}</span>{/if}
+                  <span class="legend">{t("pv.weight", { n: k.weight ?? 1 })}</span>
+                  {#if tr}<Grille data={tr} {max} /><span class="num count">{sum(tr.total).toLocaleString()}</span>{/if}
                 </div>
               {/each}
               {#if g.models?.length}<div class="chips">
@@ -84,21 +85,18 @@
         </ul>
       {:else}
         <div class="state">
-          <div class="row"><span class="lamp off"></span>No {label(family)} API keys</div>
-          <p>
-            API keys from the provider’s developer platform, billed per request. A group is one endpoint with one or more keys,
-            used in turn by weight.
-          </p>
+          <div class="row"><span class="lamp off"></span>{t("pv.none", { provider: label(family, t) })}</div>
+          <p>{t("pv.noneBody")}</p>
         </div>
       {/if}
-      {#if usage.error}<p class="note"><span class="lamp {missing(usage.error) ? 'off' : 'bad'}"></span>{missing(usage.error) ? "Per-key traffic is not reported by this server." : text(usage.error)}</p>{/if}
+      {#if usage.error}<p class="note"><span class="lamp {missing(usage.error) ? 'off' : 'bad'}"></span>{missing(usage.error) ? t("pv.noTraffic") : text(usage.error)}</p>{/if}
       <form class="form" onsubmit={add}>
-        <label class="field">Group name<input required bind:value={form.name} /></label>
+        <label class="field">{t("pv.groupName")}<input required bind:value={form.name} /></label>
         <label class="field"
-          >Base URL<input type="url" required={compat} bind:value={form.url} placeholder={compat ? "https://…/v1" : "Provider default"} /></label
+          >{t("pv.baseUrl")}<input type="url" required={compat} bind:value={form.url} placeholder={compat ? "https://…/v1" : t("pv.defaultPh")} /></label
         >
-        <label class="field">API key<input type="password" autocomplete="off" required bind:value={form.key} /></label>
-        <button class="key primary" disabled={store.busy}><svg class="i" aria-hidden="true"><use href="#i-plus" /></svg>Add group</button>
+        <label class="field">{t("pv.apiKey")}<input type="password" autocomplete="off" required bind:value={form.key} /></label>
+        <button class="key primary" disabled={store.busy}><svg class="i" aria-hidden="true"><use href="#i-plus" /></svg>{t("pv.addGroup")}</button>
       </form>
     {/snippet}
   </Load>

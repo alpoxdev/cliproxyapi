@@ -1,4 +1,5 @@
 import type { Data } from "./core";
+import { t } from "./lang.svelte";
 
 // The management key lives only in this module's memory. It is never written to storage.
 // Requests go only to the server that served this page: the API sits next to it
@@ -41,7 +42,7 @@ export const endpoint = () => `${base}/v8/management`;
 export const route = (path: string) => path.split("?")[0];
 
 async function send(path: string, method: string, body?: unknown) {
-  if (!key) throw new Error("Sign in with your management key.");
+  if (!key) throw new Error(t("api.signIn"));
   const at = revision;
   const headers: Record<string, string> = { Authorization: `Bearer ${key}` };
   const yaml = path === "/config.yaml";
@@ -61,13 +62,13 @@ async function send(path: string, method: string, body?: unknown) {
     if (at === revision) hooks.meta(null);
     throw new Error(
       at !== revision
-        ? "Connection changed. Try again."
+        ? t("api.changed")
         : e instanceof Error && e.name === "TimeoutError"
-          ? "The server did not answer in time."
-          : "Cannot reach the server. Check that cliproxy is still running.",
+          ? t("api.timeout")
+          : t("api.unreachable"),
     );
   }
-  if (at !== revision) throw new Error("Connection changed. Try again.");
+  if (at !== revision) throw new Error(t("api.changed"));
   hooks.meta(response.headers);
   return response;
 }
@@ -91,7 +92,7 @@ export async function api(
           ? {}
           : await response.json();
   // A body that finishes after sign-out or a reconnect belongs to the old session.
-  if (at !== revision) throw new Error("Connection changed. Try again.");
+  if (at !== revision) throw new Error(t("api.changed"));
   if (ok) return value;
   if (response.status === 401) hooks.unauthorized();
   const error = new ApiError(
@@ -102,7 +103,7 @@ export async function api(
     route(path),
   );
   if (error.missing) {
-    error.message = `Not available on this server (${method} ${route(path)} → ${response.status}).`;
+    error.message = t("api.missing", { method, path: route(path), status: response.status });
     hooks.missing(method, route(path));
   }
   throw error;
@@ -114,8 +115,8 @@ export const text = (e: unknown) => (e instanceof Error ? e.message : String(e))
 /** Asks this proxy for its model list with a client key, as a tool would. No upstream call. */
 export async function clientModels(clientKey: string): Promise<string[]> {
   const r = await fetch(`${base}/v1/models`, { headers: { Authorization: `Bearer ${clientKey}` }, cache: "no-store" });
-  if (r.status === 401) throw new Error("The proxy rejected this key. Check that it is listed under Client keys.");
-  if (!r.ok) throw new Error(`The proxy answered HTTP ${r.status}. Check Logs for the reason.`);
+  if (r.status === 401) throw new Error(t("api.keyRejected"));
+  if (!r.ok) throw new Error(t("api.httpStatus", { status: r.status }));
   return ((await r.json()).data || []).map((m: Data) => String(m.id));
 }
 

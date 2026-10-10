@@ -3,6 +3,7 @@
   import { store, every } from "../store.svelte";
   import { buckets, sumBuckets, sum, credState, credName, provider, label, readPath, newKey, ago, strategy, flag, type Data, type Lamp } from "../core";
   import { clientModels } from "../api";
+  import { t } from "../lang.svelte";
   import { checkAll, canCheck, limits } from "../quota";
   import Grille from "../Grille.svelte";
   import Load from "../Load.svelte";
@@ -10,7 +11,7 @@
 
   $effect(() => every(10_000, () => store.creds.load(true)));
   const rows = $derived(
-    (store.creds.data || []).map((a) => ({ a, b: buckets(a), s: credState(a) })),
+    (store.creds.data || []).map((a) => ({ a, b: buckets(a), s: credState(a, Date.now(), t) })),
   );
   const traffic = $derived(sumBuckets(rows.map((r) => r.b)));
   const max = $derived(Math.max(1, ...rows.flatMap((r) => r.b?.total || [])));
@@ -38,32 +39,32 @@
   const steps = $derived([
     {
       done: rows.length > 0,
-      title: "Connect an account",
-      text: "Sign in on the provider’s own page, or add a provider API key. The proxy keeps the token, never your password.",
+      title: t("start.s1.title"),
+      text: t("start.s1.text"),
       href: "#connect",
-      action: "Connect account",
+      action: t("ov.connect"),
     },
     keys.length
       ? {
           done: served || flag.get("start-tool") === "1",
-          title: "Point a tool at the proxy",
-          text: "Copy the settings for Claude Code, Codex CLI, Cursor or an SDK, with this address and your key filled in.",
+          title: t("start.s2.title"),
+          text: t("start.s2.text"),
           href: "#use",
-          action: "Use with tools",
+          action: t("start.s2.action"),
         }
       : {
           done: false,
-          title: "Point a tool at the proxy",
-          text: "Tools send a client key, a password for this proxy. Without one, anyone who can reach this address can use your accounts.",
+          title: t("start.s2.title"),
+          text: t("start.s2.textNoKey"),
           run: createKey,
-          action: "Create a client key",
+          action: t("start.s2.create"),
         },
     {
       done: served || tested,
-      title: "Send a test request",
-      text: "Asks this proxy for its models with your client key, as a tool would. It uses none of your plan’s limits.",
+      title: t("start.s3.title"),
+      text: t("start.s3.text"),
       run: test,
-      action: "Send test request",
+      action: t("start.s3.action"),
       off: !keys.length,
     },
   ]);
@@ -86,25 +87,25 @@
     document.getElementById("main")?.focus();
   }
   async function createKey() {
-    if (!(await store.act(() => store.replace("access/api-keys", keys, [...keys, newKey()]), "Client key created."))) return;
+    if (!(await store.act(() => store.replace("access/api-keys", keys, [...keys, newKey()]), t("start.keyCreated")))) return;
     // The button is gone now; continue at the next step unless the user already moved on.
     await tick();
     if (document.activeElement === document.body) document.querySelector<HTMLElement>(".start .key.primary")?.focus();
   }
   async function test() {
-    probe = { lamp: "off", text: "Sending…" };
+    probe = { lamp: "off", text: t("start.sending") };
     try {
       const ids = await clientModels(keys[0]);
       if (!ids.length) {
-        probe = { lamp: "warn", text: "The proxy answered, but no models are available yet. Connect an account first." };
+        probe = { lamp: "warn", text: t("start.noModels") };
         return;
       }
-      probe = { lamp: "ok", text: `It works: this proxy serves ${ids.length} model${ids.length > 1 ? "s" : ""} to your tools.` };
+      probe = { lamp: "ok", text: t("start.works", { n: ids.length }) };
       tested = true;
       flag.set("start-test", "1");
-      if (!steps.some((s) => !s.done)) store.notify("All set. Your tools can use this proxy now.");
+      if (!steps.some((s) => !s.done)) store.notify(t("start.allSet"));
     } catch (e) {
-      probe = { lamp: "bad", text: e instanceof Error ? e.message : "Cannot reach the proxy." };
+      probe = { lamp: "bad", text: e instanceof Error ? e.message : t("api.noReach") };
     }
   }
 
@@ -119,24 +120,24 @@
 </script>
 
 <div class="head">
-  <h1>Overview</h1>
-  <a class="key primary" href="#connect"><svg class="i" aria-hidden="true"><use href="#i-plus" /></svg>Connect account</a>
+  <h1>{t("ov.title")}</h1>
+  <a class="key primary" href="#connect"><svg class="i" aria-hidden="true"><use href="#i-plus" /></svg>{t("ov.connect")}</a>
 </div>
 
 {#if setup}
   <section class="window start" aria-labelledby="start">
     <div class="section-head">
-      <h2 id="start">Get started<small>{3 - left} of 3 done</small></h2>
-      <button class="key quiet small" onclick={dismiss}>Dismiss</button>
+      <h2 id="start">{t("start.title")}<small>{t("start.done", { n: 3 - left })}</small></h2>
+      <button class="key quiet small" onclick={dismiss}>{t("common.dismiss")}</button>
     </div>
     <ol class="list">
       {#each steps as s, i}
         <li class:done={s.done}>
           {#if s.done}<svg class="i mark" aria-hidden="true"><use href="#i-check" /></svg>{:else}<span class="lamp off"></span>{/if}
           <span class="grow"
-            ><strong>{s.title}</strong>{#if s.done}<span class="sr">, done</span>{/if}
+            ><strong>{s.title}</strong>{#if s.done}<span class="sr">{t("start.srDone")}</span>{/if}
             {#if i === 2 && probe}<span class="note" role="status"
-                >{#if !s.done}<span class="lamp {probe.lamp}" class:live={probe.text.endsWith("…")}></span>{/if}{probe.text}</span
+                >{#if !s.done}<span class="lamp {probe.lamp}" class:live={probe.text === t("start.sending")}></span>{/if}{probe.text}</span
               >{:else if !s.done}<small>{s.text}</small>{/if}</span
           >
           {#if !s.done}
@@ -149,60 +150,60 @@
   </section>
 {/if}
 
-<Load res={store.creds} what="Credentials">
+<Load res={store.creds} what={t("what.credentials")}>
   {#snippet children(list)}
     {#if list.length}
-      <section class="window display" aria-label="Last 200 minutes">
+      <section class="window display" aria-label={t("ov.last200")}>
         <div class="reading traffic">
-          <span class="legend">Requests · last 200 min</span>
+          <span class="legend">{t("ov.requests")}</span>
           <strong>{traffic ? fmt(total) : "—"}</strong>
           {#if traffic}
             <Grille data={traffic} max={Math.max(1, ...traffic.total)} d={10} gap={6} stack={5} />
-            <span class="axis legend" aria-hidden="true"><span>−200 min</span><span>now</span></span>
-          {:else}<span class="legend">Not reported by this server</span>{/if}
+            <span class="axis legend" aria-hidden="true"><span>{t("ov.minus200")}</span><span>{t("ov.now")}</span></span>
+          {:else}<span class="legend">{t("ov.notReportedServer")}</span>{/if}
         </div>
         <div class="reading">
-          <span class="legend">Ready</span>
-          <strong>{count("ok")}<small>&nbsp;of {list.length}</small></strong>
+          <span class="legend">{t("ov.ready")}</span>
+          <strong>{count("ok")}<small>&nbsp;{t("ov.ofTotal", { n: list.length })}</small></strong>
           <span class="legend"
             >{[
-              count("warn") && `${count("warn")} cooling`,
-              count("bad") && `${count("bad")} failing`,
-              count("off") && `${count("off")} disabled`,
+              count("warn") && t("ov.cooling", { n: count("warn") }),
+              count("bad") && t("ov.failing", { n: count("bad") }),
+              count("off") && t("ov.off", { n: count("off") }),
             ]
               .filter(Boolean)
-              .join(" · ") || "All credentials ready"}</span
+              .join(" · ") || t("ov.allReady")}</span
           >
         </div>
         <div class="reading">
-          <span class="legend">Success</span>
+          <span class="legend">{t("ov.success")}</span>
           <strong
             >{traffic && total ? `${(((total - failed) / total) * 100).toFixed(total - failed === total ? 0 : 1)}` : "—"}<small
               >{traffic && total ? "%" : ""}</small
             ></strong
           >
           <span class="legend"
-            >{!traffic ? "Not reported" : total ? `${fmt(failed)} failed` : "No requests yet"}{#if traffic && !total}<span class="hint">{" · "}<a href="#use">Set up a tool</a></span>{/if}</span
+            >{!traffic ? t("common.notReported") : total ? t("ov.failedN", { n: fmt(failed) }) : t("ov.noRequests")}{#if traffic && !total}<span class="hint">{" · "}<a href="#use">{t("ov.setupTool")}</a></span>{/if}</span
           >
         </div>
         <p class="routing legend">
-          Routing <b>{strategy(routing.strategy).name.toLowerCase()}</b>
-          {#if routing.retry?.["request-retry"] !== undefined}· {routing.retry["request-retry"]} retries{/if}
-          {#if routing["session-affinity"]}· session affinity{/if}
+          {t("ov.routing")} <b>{t(strategy(routing.strategy).name).toLowerCase()}</b>
+          {#if routing.retry?.["request-retry"] !== undefined}· {t("ov.retries", { n: routing.retry["request-retry"] })}{/if}
+          {#if routing["session-affinity"]}· {t("ov.affinity")}{/if}
         </p>
       </section>
 
       <section class="section">
         <div class="section-head">
-          <h2>Credentials</h2>
+          <h2>{t("ov.credentials")}</h2>
           {#if checkable}<button class="key quiet small" disabled={checking} onclick={checkLimits}
-              >{checking ? "Checking limits…" : "Check limits"}</button
+              >{checking ? t("ov.checking") : t("ov.check")}</button
             >{/if}
-          <a class="key quiet small" href="#credentials">Manage <svg class="i" width="14" height="14" aria-hidden="true"><use href="#i-chevron" /></svg></a>
+          <a class="key quiet small" href="#credentials">{t("common.manage")} <svg class="i" width="14" height="14" aria-hidden="true"><use href="#i-chevron" /></svg></a>
         </div>
         <ul class="list creds">
           {#each groups as g (g.p)}
-            <li class="group">{label(g.p)}<span>{g.rows.length}</span></li>
+            <li class="group">{label(g.p, t)}<span>{g.rows.length}</span></li>
             {#each g.rows as r (`${r.a.name}\u0000${r.a.auth_index}`)}
               <li>
                 <a class="item" href={`#credentials/${encodeURIComponent(r.a.id || r.a.name)}`}>
@@ -210,7 +211,7 @@
                   <span class="name grow"
                     ><strong>{credName(r.a)}</strong><small>{r.a.note || r.a.name}</small></span
                   >
-                  {#if r.b}<Grille data={r.b} {max} />{:else}<span class="legend">No history reported</span>{/if}
+                  {#if r.b}<Grille data={r.b} {max} />{:else}<span class="legend">{t("ov.noHistory")}</span>{/if}
                   <span class="num count">{r.b ? fmt(sum(r.b.total)) : "—"}</span>
                   <span class="state-label">{r.s.label}</span>
                 </a>
@@ -218,20 +219,20 @@
             {/each}
           {/each}
           <li>
-            <a class="item add" href="#connect"><span class="lamp off"></span>Connect another account</a>
+            <a class="item add" href="#connect"><span class="lamp off"></span>{t("ov.addAnother")}</a>
           </li>
         </ul>
       </section>
 
       {#if limited.length}
         <section class="section">
-          <div class="section-head"><h2>Limits</h2></div>
+          <div class="section-head"><h2>{t("ov.limits")}</h2></div>
             <ul class="list limits">
               {#each limited as x (`${x.a.name}\u0000${x.a.auth_index}`)}
                 <li class="item">
-                  <span class="name"><strong>{credName(x.a)}</strong><small>{label(provider(x.a))}{x.l && "at" in x.l && x.l.at ? ` · ${ago(x.l.at)}` : ""}</small></span>
+                  <span class="name"><strong>{credName(x.a)}</strong><small>{label(provider(x.a), t)}{x.l && "at" in x.l && x.l.at ? ` · ${ago(x.l.at, Date.now(), t)}` : ""}</small></span>
                   {#if x.l && "windows" in x.l}
-                    <div class="windows">{#each x.l.windows as w}<Meter {w} />{:else}<span class="legend">No usage windows reported.</span>{/each}</div>
+                    <div class="windows">{#each x.l.windows as w}<Meter {w} />{:else}<span class="legend">{t("ov.noWindows")}</span>{/each}</div>
                   {:else if x.l}<p class="note error grow"><span class="lamp bad"></span>{x.l.error}</p>{/if}
                 </li>
               {/each}

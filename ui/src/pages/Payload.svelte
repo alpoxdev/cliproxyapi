@@ -2,14 +2,10 @@
   import { store } from "../store.svelte";
   import { readPath, type Data } from "../core";
   import Load from "../Load.svelte";
+  import { t } from "../lang.svelte";
+  import type { Key } from "../i18n";
 
-  const kinds: [string, string][] = [
-    ["default", "Set a value the request lacks."],
-    ["default-raw", "Default, with raw JSON values."],
-    ["override", "Always set the value."],
-    ["override-raw", "Override, with raw JSON values."],
-    ["filter", "Remove paths from the request."],
-  ];
+  const kinds = ["default", "default-raw", "override", "override-raw", "filter"];
   let kind = $state("default");
   let form = $state({ model: "*", protocol: "", params: '{\n  "temperature": 0.7\n}' });
   const payload = $derived(readPath(store.config.data || {}, "requests/payload", {}) as Data);
@@ -20,29 +16,29 @@
     try {
       params = JSON.parse(form.params);
     } catch {
-      return store.notify("Parameters must be valid JSON.", true);
+      return store.notify(t("pl.badJson"), true);
     }
     const list = Array.isArray(params);
     if (kind === "filter" ? !list : list || !params || typeof params !== "object")
-      return store.notify(kind === "filter" ? "Filter parameters are a JSON list of paths." : "Parameters are a JSON object of path → value.", true);
+      return store.notify(kind === "filter" ? t("pl.filterList") : t("pl.object"), true);
     const model: Data = { name: form.model.trim() };
     if (form.protocol) model.protocol = form.protocol;
-    store.act(() => store.replace(`requests/payload/${kind}`, rules, [...rules, { models: [model], params }]), "Rule added.");
+    store.act(() => store.replace(`requests/payload/${kind}`, rules, [...rules, { models: [model], params }]), t("pl.added"));
   }
 </script>
 
 <div class="head">
-  <h1>Payload rules</h1>
-  <a class="key" href="#config"><svg class="i" aria-hidden="true"><use href="#i-edit" /></svg>Edit in Configuration</a>
+  <h1>{t("pl.title")}</h1>
+  <a class="key" href="#config"><svg class="i" aria-hidden="true"><use href="#i-edit" /></svg>{t("common.edit")}</a>
 </div>
 
-  <div class="seg" role="group" aria-label="Rule type">
-    {#each kinds as [k]}<button aria-pressed={kind === k} onclick={() => (kind = k)}>{k}<b>{(payload[k] || []).length || ""}</b></button>{/each}
+  <div class="seg" role="group" aria-label={t("pl.kind")}>
+    {#each kinds as k}<button aria-pressed={kind === k} onclick={() => (kind = k)}>{k}<b>{(payload[k] || []).length || ""}</b></button>{/each}
   </div>
-  <Load res={store.config} what="Payload rules">
+  <Load res={store.config} what={t("what.payload")}>
     {#snippet children()}
       <section class="section">
-        <p class="muted">{kinds.find((k) => k[0] === kind)?.[1]} Rules match on model name and, optionally, protocol.</p>
+        <p class="muted">{t(`pl.${kind}` as Key)} {t("pl.match")}</p>
         {#if rules.length}
           <ul class="list">
             {#each rules as rule, i}
@@ -56,30 +52,30 @@
                 <button
                   class="key small quiet danger"
                   disabled={store.busy}
-                  onclick={() => store.act(() => store.replace(`requests/payload/${kind}`, rules, rules.filter((_, n) => n !== i)), "Rule removed.")}
-                  >Remove</button
+                  onclick={() => store.act(() => store.replace(`requests/payload/${kind}`, rules, rules.filter((_, n) => n !== i)), t("pl.removed"))}
+                  >{t("common.remove")}</button
                 >
               </li>
             {/each}
           </ul>
-        {:else}<p class="note"><span class="lamp off"></span>No {kind} rules.</p>{/if}
+        {:else}<p class="note"><span class="lamp off"></span>{t("pl.noRules", { kind })}</p>{/if}
         <form class="stack" onsubmit={add}>
           <div class="form">
-            <label class="field">Model pattern<input required bind:value={form.model} /></label>
+            <label class="field">{t("pl.model")}<input required bind:value={form.model} /></label>
             <label class="field"
-              >Protocol<select value={form.protocol} onchange={(e) => (form.protocol = e.currentTarget.value)}
-                ><option value="">Any</option>{#each ["openai", "claude", "gemini", "codex", "antigravity"] as p}<option>{p}</option>{/each}</select
+              >{t("pl.protocol")}<select value={form.protocol} onchange={(e) => (form.protocol = e.currentTarget.value)}
+                ><option value="">{t("pl.any")}</option>{#each ["openai", "claude", "gemini", "codex", "antigravity"] as p}<option>{p}</option>{/each}</select
               ></label
             >
           </div>
           <label class="field"
-            >{kind === "filter" ? "Paths, as a JSON list" : "Values, as a JSON object of path → value"}<textarea
+            >{kind === "filter" ? t("pl.pathsList") : t("pl.valuesObj")}<textarea
               class="code"
               rows="5"
               spellcheck="false"
               bind:value={form.params}></textarea></label
           >
-          <div class="row"><button class="key primary" disabled={store.busy}><svg class="i" aria-hidden="true"><use href="#i-plus" /></svg>Add rule</button></div>
+          <div class="row"><button class="key primary" disabled={store.busy}><svg class="i" aria-hidden="true"><use href="#i-plus" /></svg>{t("pl.add")}</button></div>
         </form>
       </section>
     {/snippet}

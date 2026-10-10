@@ -15,11 +15,11 @@ Requires Node 22.12 or newer.
 npm ci
 npm run dev      # Vite on :5173, proxies /v8 to 127.0.0.1:8317 (override with CPA_BACKEND=...)
 npm run check    # svelte-check, 0 errors and 0 warnings expected
-npm test         # unit tests for src/core.ts
+npm test         # unit tests for src/core.ts and src/i18n.ts
 npm run build    # dist/, dist-panel/, then the size budget
 ```
 
-`npm run build` runs `vite build`, then `scripts/panel.mjs` (inlines JS, CSS, font and favicon into `dist-panel/management.html`, writes its SHA-256 to `dist-panel/management.html.sha256` and into PANEL.md), then `scripts/size.mjs`, which fails the build if gzip JavaScript exceeds 49,500 B or CSS exceeds 6,853 B. The ceilings began as the sizes of the dashboard this one replaced (42,642 B and 6,853 B); JavaScript was raised twice: for the beginner onboarding, then for the Claude usage parser and plan limits.
+`npm run build` runs `vite build`, then `scripts/panel.mjs` (inlines JS, CSS, font and favicon into `dist-panel/management.html`, writes its SHA-256 to `dist-panel/management.html.sha256` and into PANEL.md), then `scripts/size.mjs`, which fails the build if gzip JavaScript exceeds 66,000 B or CSS exceeds 6,853 B. The ceilings began as the sizes of the dashboard this one replaced (42,642 B and 6,853 B); JavaScript was raised for the beginner onboarding, the Claude usage parser and plan limits, and then the English and Korean dictionaries.
 
 Rebuild the UI before compiling Rust when UI sources change; `ui/dist` is checked in and embedded at compile time.
 
@@ -30,11 +30,16 @@ Rebuild the UI before compiling Rust when UI sources change; `ui/dist` is checke
 | `src/api.ts` | Fetch wrapper. Holds the management key in memory and reports unimplemented routes (Go-style empty 404, 501, 405). |
 | `src/store.svelte.ts` | Shared state: session, server kind from version headers, config, credentials, plugins, capabilities, toasts, writes with stale checks. |
 | `src/core.ts` | Pure helpers: credential state, traffic buckets, usage records, quota windows, diffs. Tested in `src/core.test.ts`. |
+| `src/i18n.ts`, `src/lang.svelte.ts`, `src/locales/` | Languages (English, 한국어). `t("key", { n })` looks up a message; the language comes from the saved choice (`localStorage` `cliproxy-lang`, set by the language button), else the first browser language we have, else English. Tested in `src/i18n.test.ts`. |
 | `src/Load.svelte` | Loading, error, not-available and data states for one read. |
 | `src/Missing.svelte` | One line naming actions this server does not implement. |
 | `src/Grille.svelte` | The 20-bucket traffic grille. |
 | `src/Editor.svelte` | JSON or YAML editor with a reviewed diff and a reread before writing. |
 | `src/pages/*.svelte` | One component per screen. |
+
+## Languages
+
+Every sentence the dashboard shows is a key in `src/locales/en.ts`, with its Korean text under the same key in `src/locales/ko.ts`. `ko.ts` is typed from `en.ts`, so a missing key fails `npm run check`, and `npm test` also checks that both languages use the same `{placeholders}`. A message is a string, or `[one, other]` when English needs a plural picked by `{n}`; `\`backticks\`` render as code. Text that comes from the server (error messages, plugin descriptions, log lines) is shown as the server sent it. To add a language, add a file next to `ko.ts`, register it in `src/i18n.ts`, and write Korean-style plain words for people who are not developers.
 
 ## Honest states
 

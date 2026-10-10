@@ -1,6 +1,9 @@
 <script lang="ts">
   import { tick, type Component } from "svelte";
   import { store, pages } from "./store.svelte";
+  import { t, lang, setLang } from "./lang.svelte";
+  import { langs } from "./i18n";
+  import Rich from "./Rich.svelte";
   import Overview from "./pages/Overview.svelte";
   import Use from "./pages/Use.svelte";
   import Credentials from "./pages/Credentials.svelte";
@@ -35,7 +38,7 @@
   const View = $derived(views[store.route.page]);
   const current = $derived(store.route.page === "connect" ? "credentials" : store.route.page);
   const title = $derived(
-    store.route.page === "connect" ? "Connect an account" : pages.find((p) => p[0] === current)?.[1],
+    t(store.route.page === "connect" ? "page.connect" : (pages.find((p) => p[0] === current)?.[1] || "page.overview")),
   );
   const host = location.host;
   const version = $derived(/^\d/.test(store.meta.version) ? `v${store.meta.version}` : store.meta.version);
@@ -74,7 +77,7 @@
   });
 </script>
 
-<svelte:head><title>{store.logged ? `${title} · cliproxy-rs` : "Sign in · cliproxy-rs"}</title></svelte:head>
+<svelte:head><title>{store.logged ? `${title} · cliproxy-rs` : `${t("app.signInTitle")} · cliproxy-rs`}</title></svelte:head>
 <svelte:window
   onkeydown={(e) => {
     if (e.key === "Escape" && menu) {
@@ -96,8 +99,14 @@
 {#snippet theme()}<button
     class="key quiet round"
     onclick={() => store.toggleTheme()}
-    aria-label={store.theme === "dark" ? "Use light theme" : "Use dark theme"}
+    aria-label={t(store.theme === "dark" ? "app.themeLight" : "app.themeDark")}
     ><svg class="i" aria-hidden="true"><use href={`#i-${store.theme === "dark" ? "sun" : "moon"}`} /></svg></button
+  >{/snippet}
+{#snippet language()}<button
+    class="key quiet small"
+    onclick={() => setLang(lang() === "ko" ? "en" : "ko")}
+    lang={lang() === "ko" ? "en" : "ko"}
+    aria-label={`${t("lang.label")}: ${langs[lang() === "ko" ? "en" : "ko"]}`}>{langs[lang() === "ko" ? "en" : "ko"]}</button
   >{/snippet}
 
 {#if !store.logged}
@@ -105,11 +114,11 @@
     <form onsubmit={login}>
       <div class="top-row">
         <h1 class="brand">{@render mark()}</h1>
-        {@render theme()}
+        <span class="row">{@render language()}{@render theme()}</span>
       </div>
       <div class="window">
         <label class="field"
-          >Management key<input
+          >{t("app.managementKey")}<input
             type="password"
             required
             bind:value={secret}
@@ -120,34 +129,32 @@
             <span class="lamp bad"></span>{failure}
           </p>{/if}
         <button class="key primary" disabled={connecting}
-          >{connecting ? "Connecting…" : "Connect"}</button
+          >{connecting ? t("app.connecting") : t("app.connect")}</button
         >
       </div>
-      <p class="small muted">
-        Use <code>management.secret-key</code> from the server’s config.yaml. It stays in this tab’s memory only; reloading
-        signs you out.
-      </p>
+      <p class="small muted"><Rich text={t("app.loginHint")} /></p>
     </form>
   </main>
 {:else}
   <a class="key skip" href="#main" onclick={(e) => (e.preventDefault(), document.getElementById("main")?.focus())}
-    >Skip to content</a
+    >{t("app.skip")}</a
   >
   <div class="shell">
-    <nav class="side" class:open={menu} id="pages" aria-label="Pages">
+    <nav class="side" class:open={menu} id="pages" aria-label={t("app.pages")}>
       <a class="brand" href="#overview">{@render mark()}</a>
       <div class="nav">
-        {#each pages as [id, name]}{#if id}<a
+        {#each pages as [id, name]}{#if name}<a
               href={`#${id}`}
               aria-current={current === id ? "page" : undefined}
-              >{name}{#if id === "credentials" && store.creds.data?.length}<small
+              >{t(name)}{#if id === "credentials" && store.creds.data?.length}<small
                   >{store.creds.data.length}</small
                 >{/if}</a
             >{:else}<hr />{/if}{/each}
       </div>
       <div class="side-foot">
         {@render theme()}
-        <button class="key quiet" onclick={() => (!store.dirty || confirm("Discard unsaved changes?")) && store.logout()}><svg class="i" aria-hidden="true"><use href="#i-out" /></svg>Sign out</button>
+        {@render language()}
+        <button class="key quiet" onclick={() => (!store.dirty || confirm(t("app.discard"))) && store.logout()}><svg class="i" aria-hidden="true"><use href="#i-out" /></svg>{t("app.signOut")}</button>
       </div>
     </nav>
     <div class="main">
@@ -155,13 +162,13 @@
         <a class="brand" href="#overview">{@render mark()}</a>
         <span class="row" role="status">
           <span class="lamp {store.online ? 'ok' : 'bad'}"></span>
-          {#if store.online}<span class="sr">Connected to</span><span class="host"
+          {#if store.online}<span class="sr">{t("app.connectedTo")}</span><span class="host"
               >{host}{version ? ` · ${version}` : ""}</span
-            >{:else}Connection lost{/if}
+            >{:else}{t("app.lost")}{/if}
         </span>
         <button
           class="key round menu"
-          aria-label="Pages"
+          aria-label={t("app.pages")}
           aria-expanded={menu}
           aria-controls="pages"
           onclick={() => (menu = !menu) && tick().then(() => document.querySelector<HTMLElement>(".nav a")?.focus())}><svg class="i" aria-hidden="true"><use href={`#i-${menu ? "close" : "menu"}`} /></svg></button
@@ -177,7 +184,7 @@
     <span class="lamp {store.toast.bad ? 'bad' : 'ok'}"></span>{store.toast.text}
     {#if store.toast.bad}<button
         class="key quiet round small"
-        aria-label="Dismiss"
+        aria-label={t("app.dismiss")}
         onclick={() => (store.toast = null)}><svg class="i" aria-hidden="true"><use href="#i-close" /></svg></button
       >{/if}
   </div>{/if}

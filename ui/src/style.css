@@ -64,6 +64,8 @@ body {
   accent-color: var(--ink);
   scrollbar-color: var(--line-2) transparent;
 }
+/* Korean wraps between words, not inside them. */
+:lang(ko) { word-break: keep-all; overflow-wrap: break-word; }
 ::selection { background: var(--accent); color: #1c1b19; }
 h1, h2, h3, p { margin: 0; }
 p { text-wrap: pretty; }

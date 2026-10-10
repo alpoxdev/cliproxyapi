@@ -3,6 +3,7 @@
   import { api, configValue, text } from "./api";
   import { equal, lineDiff } from "./core";
   import { store } from "./store.svelte";
+  import { t } from "./lang.svelte";
   // Edit one config value. Changes are previewed as a diff and the target is reread before
   // writing, so an edit made elsewhere is refused instead of overwritten.
   let {
@@ -32,7 +33,7 @@
       review = true;
       error = "";
     } catch {
-      error = "The JSON is not valid. Fix it before reviewing.";
+      error = t("editor.badJson");
     }
   }
   // Set false when this editor closes, so a save still in flight cannot touch the next one.
@@ -47,11 +48,11 @@
       const latest = yaml ? await api(path, "GET", undefined, "text") : await configValue(path, Array.isArray(baseline) ? [] : {});
       if (!alive) return;
       if (!equal(latest, baseline))
-        throw new Error("The server copy changed since you opened it. Nothing was written; reopen to edit the new copy.");
+        throw new Error(t("editor.changed"));
       await api(path, "PUT", body);
       if (!alive) return;
       store.dirty = false;
-      store.notify("Saved.");
+      store.notify(t("common.saved"));
       onclose(true);
       store.config.load(true);
     } catch (e) {
@@ -61,7 +62,7 @@
     }
   }
   function close() {
-    if (dirty && !confirm("Discard unsaved changes?")) return;
+    if (dirty && !confirm(t("app.discard"))) return;
     store.dirty = false;
     onclose(false);
   }
@@ -70,20 +71,20 @@
 <section class="section editor" aria-label={title}>
   <div class="section-head">
     <h2>{title}</h2>
-    <button class="key quiet" disabled={saving} onclick={close}>Close</button>
+    <button class="key quiet" disabled={saving} onclick={close}>{t("common.close")}</button>
   </div>
   <p class="legend mono">{path}</p>
   {#if error}<p class="note error" role="alert"><span class="lamp bad"></span>{error}</p>{/if}
   {#if review}
-    <div class="code-window diff" aria-label="Changes">
+    <div class="code-window diff" aria-label={t("editor.changes")}>
       {#each diff as line}<div class={line.kind}>
           <span>{line.kind === "added" ? "+" : line.kind === "removed" ? "−" : ""}</span>{line.text}
         </div>{/each}
     </div>
     <div class="row">
-      <button class="key primary" disabled={saving || !dirty} onclick={save}>{saving ? "Saving…" : "Apply"}</button>
-      <button class="key" disabled={saving} onclick={() => (review = false)}>Keep editing</button>
-      <span class="legend">{yaml ? "The server validates YAML and may normalise it." : ""}</span>
+      <button class="key primary" disabled={saving || !dirty} onclick={save}>{saving ? t("editor.saving") : t("editor.apply")}</button>
+      <button class="key" disabled={saving} onclick={() => (review = false)}>{t("editor.keep")}</button>
+      <span class="legend">{yaml ? t("editor.yamlNote") : ""}</span>
     </div>
   {:else}
     <label
@@ -94,6 +95,6 @@
           {@attach (n) => n.focus()}
           bind:value={draft}></textarea></label
     >
-    <div class="row"><button class="key primary" disabled={!dirty} onclick={check}>Review changes</button></div>
+    <div class="row"><button class="key primary" disabled={!dirty} onclick={check}>{t("editor.review")}</button></div>
   {/if}
 </section>

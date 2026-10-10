@@ -1,23 +1,25 @@
 import { api, connect, disconnect, configValue, route, ApiError } from "./api";
-import { equal, fieldPath, reconcile, type Data, type Window } from "./core";
+import { equal, fieldPath, reconcile, type Data } from "./core";
+import { t } from "./lang.svelte";
+import type { Key } from "./i18n";
 
 export const pages = [
-  ["overview", "Overview"],
-  ["use", "Use with tools"],
-  ["credentials", "Credentials"],
-  ["providers", "Provider keys"],
-  ["keys", "Client keys"],
-  ["models", "Models"],
-  ["payload", "Payload rules"],
-  ["quotas", "Quotas"],
+  ["overview", "page.overview"],
+  ["use", "page.use"],
+  ["credentials", "page.credentials"],
+  ["providers", "page.providers"],
+  ["keys", "page.keys"],
+  ["models", "page.models"],
+  ["payload", "page.payload"],
+  ["quotas", "page.quotas"],
   ["", ""],
-  ["usage", "Usage"],
-  ["logs", "Logs"],
+  ["usage", "page.usage"],
+  ["logs", "page.logs"],
   ["", ""],
-  ["config", "Configuration"],
-  ["plugins", "Plugins"],
-  ["system", "System"],
-] as const;
+  ["config", "page.config"],
+  ["plugins", "page.plugins"],
+  ["system", "page.system"],
+] as const satisfies readonly (readonly [string, Key | ""])[];
 const routes = new Set<string>([...pages.map((p) => p[0]).filter(Boolean), "connect"]);
 const aliases: Record<string, string> = { oauth: "connect", configuration: "config" };
 
@@ -79,7 +81,7 @@ class Store {
   );
   plugins = new Res<Data[]>(async () => (await api("/plugins")).plugins || []);
   /** Live quota checks made in this tab, by auth index. */
-  quota = $state<Record<string, { at: number; windows: Window[] } | { error: string }>>({});
+  quota = $state.raw<Record<string, { at: number; provider: string; raw: Data } | { error: string }>>({});
   #probed = new Set<string>();
   #timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -89,7 +91,7 @@ class Store {
       unauthorized: () => {
         if (!this.logged) return;
         this.logout();
-        this.notify("The management key was rejected. Sign in again.", true);
+        this.notify(t("app.rejected"), true);
       },
       missing: (method, path) => (this.caps[`${method} ${path}`] = false),
       meta: (h) => {
@@ -142,7 +144,7 @@ class Store {
   sync() {
     const next = parse(location.hash);
     if (next.page === this.route.page && next.arg === this.route.arg) return;
-    if (this.dirty && !confirm("Discard unsaved changes?")) {
+    if (this.dirty && !confirm(t("app.discard"))) {
       history.replaceState(null, "", `#${this.route.page}${this.route.arg ? `/${this.route.arg}` : ""}`);
       return;
     }
@@ -194,7 +196,7 @@ class Store {
     const latest = await configValue(url, unset);
     if (!equal(latest, before)) {
       await this.config.load(true);
-      throw new Error("This setting changed on the server. Nothing was written; the page now shows the server copy.");
+      throw new Error(t("store.changed"));
     }
     await api(url, "PUT", next);
     await this.config.load(true);
@@ -208,12 +210,12 @@ function signInHelp(e: unknown): string {
   if (!(e instanceof ApiError)) return e instanceof Error ? e.message : String(e);
   const m = e.message;
   if (e.status === 404 || /key not set/.test(m))
-    return "The management API is off on this server. Set management.secret-key in the server's config.yaml (or start it with MANAGEMENT_PASSWORD), then restart it.";
+    return t("signin.off");
   if (/remote management disabled/.test(m))
-    return "This server accepts the dashboard only from its own machine. Open it there, or set management.allow-remote: true in config.yaml with a strong key.";
-  if (/banned/i.test(m)) return `${m}. Too many wrong keys came from this address.`;
+    return t("signin.local");
+  if (/banned/i.test(m)) return t("signin.banned", { message: m });
   if (e.status === 401)
-    return "That key is not right. Use the plain text you set as management.secret-key: on first start the server replaces it in config.yaml with a hash, so the file no longer shows it.";
+    return t("signin.wrong");
   return m;
 }
 

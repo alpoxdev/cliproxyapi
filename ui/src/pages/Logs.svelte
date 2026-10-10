@@ -5,6 +5,7 @@
   import { type Data } from "../core";
   import Load from "../Load.svelte";
   import Missing from "../Missing.svelte";
+  import { t } from "../lang.svelte";
 
   const MAX = 1500;
   let cursor = "",
@@ -50,27 +51,27 @@
 </script>
 
 <div class="head">
-  <h1>Logs</h1>
+  <h1>{t("lg.title")}</h1>
   <button class="key" disabled={!store.can("GET", "/observability/logs")} aria-pressed={tail} onclick={() => (tail = !tail)}
-    ><span class="lamp {tail ? 'ok live' : 'off'}"></span>{tail ? "Following" : "Paused"}</button
+    ><span class="lamp {tail ? 'ok live' : 'off'}"></span>{tail ? t("lg.following") : t("lg.paused")}</button
   >
   <button
     class="key quiet danger"
     disabled={store.busy || !store.can("GET", "/observability/logs") || !store.can("DELETE", "/observability/logs")}
-    onclick={() => store.call("DELETE", "/observability/logs", undefined, "Logs cleared.", "Delete the server’s application logs?", () => ((cursor = ""), logs.load()))}
-    >Clear</button
+    onclick={() => store.call("DELETE", "/observability/logs", undefined, t("lg.cleared"), t("lg.clearAsk"), () => ((cursor = ""), logs.load()))}
+    >{t("lg.clear")}</button
   >
 </div>
 
-<Load res={logs} what="Application logs">
+<Load res={logs} what={t("what.logs")}>
   {#snippet children(lines)}
     <section class="section">
       <div class="row">
-        <label class="search grow"><svg class="i" aria-hidden="true"><use href="#i-search" /></svg><span class="sr">Filter lines</span><input bind:value={query} placeholder="Filter lines" /></label>
-        <label class="check"><input type="checkbox" checked={own} onchange={(e) => (own = e.currentTarget.checked)} />Management API calls</label>
+        <label class="search grow"><svg class="i" aria-hidden="true"><use href="#i-search" /></svg><span class="sr">{t("lg.filter")}</span><input bind:value={query} placeholder={t("lg.filter")} /></label>
+        <label class="check"><input type="checkbox" checked={own} onchange={(e) => (own = e.currentTarget.checked)} />{t("lg.mgmt")}</label>
       </div>
       <!-- svelte-ignore a11y_no_noninteractive_tabindex: the scrolling log must be reachable by keyboard -->
-      <div class="code-window log" bind:this={pane} role="log" aria-label="Application log" tabindex="0">
+      <div class="code-window log" bind:this={pane} role="log" aria-label={t("lg.log")} tabindex="0">
         {#each shown as line}
           {@const m = parse(line)}
           {#if m}<div class={m[3].toLowerCase()}>
@@ -79,50 +80,50 @@
               <span class="lvl">{m[3]}</span>
               {m[4]}
             </div>{:else}<div>{line}</div>{/if}
-        {:else}<div class="muted">{query ? "No lines match." : lines.length ? "" : "No lines yet. Needs observability.logs.logging-to-file."}</div>{/each}
+        {:else}<div class="muted">{query ? t("lg.noMatch") : lines.length ? "" : t("lg.empty")}</div>{/each}
       </div>
-      <p class="legend">{shown.length.toLocaleString()} of {lines.length.toLocaleString()} lines · newest {MAX.toLocaleString()} kept in this tab</p>
+      <p class="legend">{t("lg.count", { shown: shown.length.toLocaleString(), total: lines.length.toLocaleString(), max: MAX.toLocaleString() })}</p>
     </section>
   {/snippet}
 </Load>
 
 <section class="section">
-  <h2>Request log</h2>
+  <h2>{t("lg.request")}</h2>
   <form class="form" onsubmit={(e) => {
       e.preventDefault();
       const id = reqId.trim();
       if (store.route.arg === id) inspect(id);
       else store.go(`logs/${encodeURIComponent(id)}`);
     }}>
-    <label class="field">Request ID<input required bind:value={reqId} placeholder="From a log line or the X-Request-Id header" /></label>
-    <button class="key">Open</button>
-    {#if reqText}<button class="key" onclick={() => download(new Blob([reqText]), `request-${reqId}.log`)}><svg class="i" aria-hidden="true"><use href="#i-download" /></svg>Download</button>{/if}
+    <label class="field">{t("lg.reqId")}<input required bind:value={reqId} placeholder={t("lg.reqPh")} /></label>
+    <button class="key">{t("lg.open")}</button>
+    {#if reqText}<button class="key" onclick={() => download(new Blob([reqText]), `request-${reqId}.log`)}><svg class="i" aria-hidden="true"><use href="#i-download" /></svg>{t("common.download")}</button>{/if}
   </form>
   {#if reqError}<p class="note error"><span class="lamp bad"></span>{reqError}</p>{/if}
   {#if reqText}<pre class="code-window request">{reqText}</pre>{/if}
 </section>
 
 <section class="section">
-  <h2>Error logs</h2>
-  <Load res={files} what="Error logs">
+  <h2>{t("lg.errors")}</h2>
+  <Load res={files} what={t("what.errorLogs")}>
     {#snippet children(list)}
       {#if list.length}
         <ul class="list">
           {#each list as f (f.name)}
             <li class="item">
               <code class="grow ellipsis">{f.name}</code>
-              <span class="legend">{f.modified ? new Date(f.modified * 1000).toLocaleString() : ""}</span>
+              <span class="legend">{f.modified ? new Date(f.modified * 1000).toLocaleString(t.lang) : ""}</span>
               <button
                 class="key small"
                 onclick={() =>
                   store.act(async () =>
                     download(await api(`/observability/logs/errors/${encodeURIComponent(f.name)}`, "GET", undefined, "blob"), f.name),
-                  )}><svg class="i" width="14" height="14" aria-hidden="true"><use href="#i-download" /></svg>Download</button
+                  )}><svg class="i" width="14" height="14" aria-hidden="true"><use href="#i-download" /></svg>{t("common.download")}</button
               >
             </li>
           {/each}
         </ul>
-      {:else}<p class="muted">No error logs.</p>{/if}
+      {:else}<p class="muted">{t("lg.noErrors")}</p>{/if}
     {/snippet}
   </Load>
 </section>

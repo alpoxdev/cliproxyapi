@@ -6,10 +6,12 @@
 // parser (plain names, money, the newer limits list) and plan limits on the overview.
 // It went to 50,000 B on 2026-10-09 for the owner-requested usage checks of GitHub Copilot and
 // Antigravity accounts.
+// It went to 66,000 B on 2026-10-10 for the owner-requested English and Korean dictionaries
+// (512 messages each, both bundled because the panel is one file with no lazy chunks).
 import { readdirSync, readFileSync, copyFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 
-const BUDGET = { js: 50_000, css: 6_853 };
+const BUDGET = { js: 66_000, css: 6_853 };
 
 copyFileSync("dist/index.html", "dist/management.html");
 const html = readFileSync("dist/index.html", "utf8");

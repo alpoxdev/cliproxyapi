@@ -3,6 +3,7 @@
 // only ever runs when the user presses a button.
 import { api } from "./api";
 import { store } from "./store.svelte";
+import { t } from "./lang.svelte";
 import { provider, quotaWindows, signalWindows, type Data, type Window } from "./core";
 
 // Usage endpoints the server calls with the credential's own token ($TOKEN$ is substituted server-side).
@@ -26,8 +27,8 @@ export const canCheck = (a: Data) => !a.disabled && hasSource(a);
 /** What is known about one credential's limits: a live check in this tab, else passive signals. */
 export function limits(a: Data): { windows: Window[]; at: number } | { error: string } | null {
   const live = store.quota[quotaKey(a)];
-  if (live) return live;
-  const windows = signalWindows(provider(a), a.quota);
+  if (live) return "error" in live ? live : { at: live.at, windows: quotaWindows(live.provider, live.raw, t) };
+  const windows = signalWindows(provider(a), a.quota, t);
   return windows.length ? { windows, at: Date.parse(a.quota?.observed_at) || 0 } : null;
 }
 
@@ -57,14 +58,14 @@ export async function check(a: Data) {
       if (r.status_code < 200 || r.status_code >= 300)
         throw new Error(
           r.status_code === 401 || r.status_code === 403
-            ? `The provider rejected the account's token (HTTP ${r.status_code}). Refresh the token, or connect the account again.`
-            : `The provider answered HTTP ${r.status_code}. Try again later.`,
+            ? t("quota.rejected", { status: r.status_code })
+            : t("quota.failed", { status: r.status_code }),
         );
       raw = typeof r.body === "string" ? JSON.parse(r.body) : r.body;
     }
-    store.quota[quotaKey(a)] = { at: Date.now(), windows: quotaWindows(p, raw) };
+    store.quota = { ...store.quota, [quotaKey(a)]: { at: Date.now(), provider: p, raw } };
   } catch (e) {
-    store.quota[quotaKey(a)] = { error: e instanceof Error ? e.message : String(e) };
+    store.quota = { ...store.quota, [quotaKey(a)]: { error: e instanceof Error ? e.message : String(e) } };
   }
 }
 
