@@ -55,7 +55,7 @@ The updater only sees published releases, not drafts. Until the first release is
 
 SHA-256 of the `dist-panel/management.html` built from this commit:
 
-<!-- sha256 -->`9d546888922352691fc28d1aabde670737618e91fc42995ddec69a2a3d55b99d`<!-- /sha256 -->
+<!-- sha256 -->`58f93adaa32f2c624ceb74e05fa0904a64870997bdae74b4c1f1c530eb55c188`<!-- /sha256 -->
 
 ```sh
 sha256sum static/management.html

@@ -6,6 +6,8 @@
   import Load from "../Load.svelte";
   import Missing from "../Missing.svelte";
   import { t } from "../lang.svelte";
+  import { en } from "../locales/en";
+  import type { Key } from "../i18n";
 
   $effect(() => every(10_000, () => store.creds.load(true)));
   let query = $state(""),
@@ -92,7 +94,7 @@
     [
       [t("cr.fact.file"), a.name, true],
       [t("cr.fact.index"), a.auth_index || "—", true],
-      [t("cr.fact.source"), a.runtime_only ? t("cr.src.config") : a.source || t("cr.src.file")],
+      [t("cr.fact.source"), a.runtime_only ? t("cr.src.config") : said(`cr.src.${a.source || "file"}`, a.source || "file")],
       [t("cr.fact.lifetime"), a.success === undefined ? t("common.notReported") : t("cr.life.ok", { ok: a.success, failed: a.failed || 0 })],
       [t("cr.fact.refreshed"), a.last_refresh && new Date(a.last_refresh).toLocaleString(t.lang)],
       [t("cr.fact.status"), a.status_message],
@@ -103,6 +105,8 @@
     [t("cr.act.reset"), "POST", "/routing/cooldown/reset", { auth_index: a.auth_index }, t("cr.act.cleared"), t("cr.act.resetAsk"), !a.auth_index],
     [t("cr.act.delete"), "DELETE", "/credentials", { names: [a.name] }, t("cr.act.deleted"), t("cr.act.deleteAsk", { name: a.name }), !!a.runtime_only],
   ];
+  // A value the server may extend: shown translated when the dictionary knows it, as sent otherwise.
+  const said = (key: string, raw: string) => (key in en ? t(key as Key) : raw);
   const reload = () => store.creds.load(true);
 
   async function upload(input: HTMLInputElement) {
@@ -230,7 +234,7 @@
                     {#if a.cooldowns?.length || a.quota?.signals && Object.keys(a.quota.signals).length}
                       <div class="chips">
                         {#each a.cooldowns || [] as c}<span class="chip"
-                            ><span class="lamp warn"></span>{c.model_key || t("cr.credential")} · {c.reason?.replaceAll("_", " ")}{c.http_status ? ` ${c.http_status}` : ""} · {span(Date.parse(c.retry_at) - Date.now(), t)}</span
+                            ><span class="lamp warn"></span>{c.model_key || t("cr.credential")} · {said(`cr.why.${c.reason}`, String(c.reason ?? "").replaceAll("_", " "))}{c.http_status ? ` ${c.http_status}` : ""} · {span(Date.parse(c.retry_at) - Date.now(), t)}</span
                           >{/each}
                         {#each Object.entries(a.quota?.signals || {}) as [k, v]}<span class="chip">{k}: {v}</span>{/each}
                       </div>
