@@ -146,6 +146,7 @@ export const ko: Record<keyof typeof en, string | readonly [string, string]> = {
   "editor.review": "변경 내용 확인",
   "quota.rejected": "제공사가 이 계정의 토큰을 받아주지 않았어요 (HTTP {status}). 토큰을 새로 고치거나 계정을 다시 연결해 주세요.",
   "quota.failed": "제공사의 응답: HTTP {status}. 잠시 뒤에 다시 시도해 주세요.",
+  "quota.noProject": "이 계정에는 Cloud Code Assist 프로젝트가 없어요. 계정을 다시 연결해 주세요.",
   "ov.title": "한눈에 보기",
   "ov.connect": "계정 연결",
   "start.title": "시작하기",

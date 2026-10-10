@@ -301,6 +301,10 @@ export function quotaWindows(p: string, payload: Data, tr: Tr = english): Window
   return out;
 }
 
+/** A successful live check younger than this is reused instead of asking the provider again. */
+export const QUOTA_REUSE_MS = 60_000;
+export const quotaFresh = (q: Data | undefined, now = Date.now()) => !!q && "raw" in q && now - q.at < QUOTA_REUSE_MS;
+
 const percent = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? clamp(v) : null);
 /**
  * Claude's legacy buckets, titled as Claude Code's /usage titles them. Anthropic also sends

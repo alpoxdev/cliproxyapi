@@ -145,6 +145,7 @@ export const en = {
   "editor.review": "Review changes",
   "quota.rejected": "The provider rejected the account's token (HTTP {status}). Refresh the token, or connect the account again.",
   "quota.failed": "The provider answered HTTP {status}. Try again later.",
+  "quota.noProject": "This account has no Cloud Code Assist project. Connect it again.",
   "ov.title": "Overview",
   "ov.connect": "Connect account",
   "start.title": "Get started",

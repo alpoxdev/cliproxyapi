@@ -4,7 +4,7 @@
 import { api } from "./api";
 import { store } from "./store.svelte";
 import { t } from "./lang.svelte";
-import { provider, quotaWindows, signalWindows, type Data, type Window } from "./core";
+import { provider, quotaFresh, quotaWindows, signalWindows, type Data, type Window } from "./core";
 
 // Usage endpoints the server calls with the credential's own token ($TOKEN$ is substituted server-side).
 const usageURL: Record<string, string> = {
@@ -32,8 +32,9 @@ export function limits(a: Data): { windows: Window[]; at: number } | { error: st
   return windows.length ? { windows, at: Date.parse(a.quota?.observed_at) || 0 } : null;
 }
 
-export async function check(a: Data) {
+export async function check(a: Data, force = true) {
   const p = provider(a);
+  if (!force && quotaFresh(store.quota[quotaKey(a)])) return;
   try {
     let raw: Data;
     const pl = plugin(p);
@@ -47,6 +48,7 @@ export async function check(a: Data) {
         if (account) header["Chatgpt-Account-Id"] = account;
       }
       const ag = p === "antigravity";
+      if (ag && !a.project_id) throw new Error(t("quota.noProject"));
       if (ag) header["User-Agent"] = "antigravity/ide/2.5.5 (os_type=linux; arch=amd64; aidev_client; auth_method=oauth)";
       const r = await api("/requests/api-call", "POST", {
         authIndex: a.auth_index,
@@ -71,5 +73,5 @@ export async function check(a: Data) {
 
 /** One check per supported credential, one after another so the provider is not hammered. */
 export async function checkAll(list: Data[]) {
-  for (const a of list) if (canCheck(a)) await check(a);
+  for (const a of list) if (canCheck(a)) await check(a, false);
 }

@@ -11,6 +11,7 @@ import {
   level,
   lineDiff,
   otherSignals,
+  quotaFresh,
   quotaWindows,
   reconcile,
   signalWindows,
@@ -332,6 +333,14 @@ print(json.dumps({k.arg: k.value.value for n in ast.walk(ast.parse(sys.stdin.rea
   const odd = run("import json, sys, tomllib; print(json.dumps(tomllib.loads(sys.stdin.read())))",
     snippet("Codex CLI", `http://h/p"\\q`, key, model).split("# then")[0]);
   assert.equal(odd.model_providers.cliproxy.base_url, `http://h/p"\\q/v1`);
+});
+
+test("a live quota check is reused for a minute, errors and old results are not", () => {
+  const now = 1_000_000;
+  assert.equal(quotaFresh({ at: now - 59_000, provider: "claude", raw: {} }, now), true);
+  assert.equal(quotaFresh({ at: now - 60_000, provider: "claude", raw: {} }, now), false);
+  assert.equal(quotaFresh({ error: "boom" }, now), false);
+  assert.equal(quotaFresh(undefined, now), false);
 });
 
 test("Copilot reads capped quotas only, and Antigravity reads its quota groups", () => {
