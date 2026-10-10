@@ -11,6 +11,7 @@ use std::sync::LazyLock;
 pub mod command_code;
 pub mod devin;
 pub mod dynamic;
+pub mod gateway;
 
 use serde::Deserialize;
 use serde_json::{Map, Value};
