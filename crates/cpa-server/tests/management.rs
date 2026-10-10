@@ -260,6 +260,9 @@ async fn real_http_config_rejections_comments_publication_and_panel_assets() {
     let html = client.get(format!("{base}/management.html")).send().await.unwrap();
     assert_eq!(html.status(), 200);
     let html = html.text().await.unwrap();
+    let short = client.get(format!("{base}/ui")).send().await.unwrap();
+    assert_eq!(short.status(), 200);
+    assert_eq!(short.text().await.unwrap(), html);
     for piece in html
         .split('"')
         .filter(|p| p.starts_with("./assets/") || p.starts_with("./fonts/"))
@@ -1614,6 +1617,86 @@ async fn api_call_head_does_not_negotiate_gzip() {
     assert_eq!(r["header"]["X-Ae"], json!(["none"]));
     assert_eq!(r["header"]["Content-Encoding"], json!(["gzip"]));
     assert_eq!(r["body"], "");
+    server.abort();
+    up.abort();
+}
+
+#[tokio::test]
+async fn command_code_quota_fetch_includes_period_spend() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let provider = format!("http://{}", listener.local_addr().unwrap());
+    let up = tokio::spawn(async move {
+        let app = axum::Router::new().fallback(|req: axum::extract::Request| async move {
+            let path = req.uri().path().to_owned();
+            let query = req.uri().query().unwrap_or_default().to_owned();
+            let body = match path.as_str() {
+                "/alpha/whoami" => {
+                    json!({"data": {"user": {"id": "u1", "userName": "n"}, "org": {"id": "org-9"}}})
+                }
+                "/alpha/billing/credits" if query.contains("orgId=org-9") => json!({
+                    "data": {
+                        "windowLimits": {"fiveHour": {"cap": 100, "used": 25, "resetAt": 1893456000}},
+                        "credits": {"monthlyCredits": 10.0, "purchasedCredits": 0.0, "freeCredits": 2.5}
+                    }
+                }),
+                "/alpha/billing/subscriptions" if query.contains("orgId=org-9") => json!({
+                    "data": {"currentPeriodStart": "2026-10-01T00:00:00Z", "currentPeriodEnd": "2026-11-01T00:00:00Z"}
+                }),
+                "/alpha/usage/summary"
+                    if query.contains("orgId=org-9") && query.contains("since=2026-10-01T00%3A00%3A00Z") =>
+                {
+                    json!({"data": {"totalCost": 7.5}})
+                }
+                _ => json!({"error": path}),
+            };
+            axum::Json(body)
+        });
+        axum::serve(listener, app).await.unwrap();
+    });
+    let f = Fixture::from_yaml("cc-quota", {
+        let provider = provider.clone();
+        move |auth, hash| {
+            std::fs::write(
+                auth.join("command-code-u1.json"),
+                serde_json::json!({
+                    "type": "command-code",
+                    "api_key": "cc-fake",
+                    "base_url": provider,
+                })
+                .to_string(),
+            )
+            .unwrap();
+            format!(
+                "config-version: 8\nmanagement:\n  secret-key: '{hash}'\noauth:\n  auth-dir: {}\n",
+                auth.display()
+            )
+        }
+    });
+    let (base, server) = f.server().await;
+    let listed = wreq::Client::new()
+        .get(format!("{base}/v8/management/credentials"))
+        .bearer_auth("fake-management-only")
+        .send()
+        .await
+        .unwrap()
+        .json::<Value>()
+        .await
+        .unwrap();
+    let index = listed["files"][0]["auth_index"].as_str().unwrap();
+    let body = wreq::Client::new()
+        .post(format!("{base}/v8/management/quota/fetch"))
+        .bearer_auth("fake-management-only")
+        .json(&json!({"auth_index": index, "provider": "command-code"}))
+        .send()
+        .await
+        .unwrap()
+        .json::<Value>()
+        .await
+        .unwrap();
+    assert_eq!(body["data"]["period"]["used"], 7.5);
+    assert_eq!(body["data"]["period"]["limit"], 20.0);
+    assert_eq!(body["data"]["period"]["resetAt"], "2026-11-01T00:00:00Z");
+    assert_eq!(body["data"]["windowLimits"]["fiveHour"]["used"], 25);
     server.abort();
     up.abort();
 }

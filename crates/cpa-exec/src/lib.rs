@@ -42,6 +42,7 @@ mod codex_tokens;
 mod codex_ws;
 pub mod command_code;
 pub mod command_code_auth;
+pub mod command_code_quota;
 pub mod devin;
 pub mod devin_auth;
 pub mod devin_models;

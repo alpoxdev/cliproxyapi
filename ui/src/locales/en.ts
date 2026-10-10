@@ -48,6 +48,7 @@ export const en = {
   "win.secondary": "Secondary limit",
   "win.fiveHour": "5-hour limit",
   "win.weekly": "Weekly limit",
+  "win.period": "Period limit",
   "win.length": "{span} limit",
   "win.credits": "Credits left",
   "win.premium": "Premium requests",

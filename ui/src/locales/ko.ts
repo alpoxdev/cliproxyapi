@@ -49,6 +49,7 @@ export const ko: Record<keyof typeof en, string | readonly [string, string]> = {
   "win.secondary": "보조 한도",
   "win.fiveHour": "5시간 한도",
   "win.weekly": "주간 한도",
+  "win.period": "전체 한도",
   "win.length": "{span} 한도",
   "win.credits": "남은 크레딧",
   "win.premium": "프리미엄 요청",

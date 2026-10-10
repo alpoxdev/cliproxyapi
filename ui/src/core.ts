@@ -277,13 +277,23 @@ export function quotaWindows(p: string, payload: Data, tr: Tr = english): Window
       if (v?.limit > 0)
         out.push({ label: k.replaceAll("_", " "), used: clamp((Number(v.used) / Number(v.limit)) * 100), reset: String(v.reset_time || "") });
   } else if (p === "command-code") {
-    // /alpha/billing/credits: rolling windows as { cap, used, resetAt }, then the credit pools.
+    // /alpha/billing/credits: rolling windows as { cap, used, resetAt }, then the period bar and credit pools.
     const b = payload.data || payload;
     for (const [k, label] of [["fiveHour", tr("win.fiveHour")], ["weekly", tr("win.weekly")]]) {
       const w = b.windowLimits?.[k];
       if (!(Number(w?.cap) > 0 && Number(w?.used) >= 0)) continue;
       const at = typeof w.resetAt === "number" ? (w.resetAt < 1e12 ? w.resetAt * 1000 : w.resetAt) : Date.parse(w.resetAt);
       out.push({ label, used: clamp((Number(w.used) / Number(w.cap)) * 100), reset: at > 0 ? new Date(at).toISOString() : "" });
+    }
+    const period = b.period;
+    if (Number(period?.limit) > 0 && Number(period?.used) >= 0) {
+      const at = typeof period.resetAt === "number" ? (period.resetAt < 1e12 ? period.resetAt * 1000 : period.resetAt) : Date.parse(period.resetAt);
+      out.push({
+        label: tr("win.period"),
+        used: clamp((Number(period.used) / Number(period.limit)) * 100),
+        reset: at > 0 ? new Date(at).toISOString() : "",
+        detail: tr("win.extraOf", { spent: `$${Number(period.used).toFixed(2)}`, cap: `$${Number(period.limit).toFixed(2)}` }),
+      });
     }
     const pools = ["monthlyCredits", "purchasedCredits", "freeCredits"].map((k) => Number(b.credits?.[k])).filter(Number.isFinite);
     if (pools.length) out.push({ label: tr("win.credits"), used: null, reset: "", detail: `$${pools.reduce((s, n) => s + Math.max(0, n), 0).toFixed(2)}` });

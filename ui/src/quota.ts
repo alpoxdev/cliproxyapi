@@ -21,7 +21,9 @@ const plugin = (p: string) =>
 export const quotaKey = (a: Data) => a.auth_index || a.name;
 /** The provider has a usage endpoint or quota plugin this server can call. */
 export const hasSource = (a: Data) =>
-  !!plugin(provider(a)) || (!!usageURL[provider(a)] && store.can("POST", "/requests/api-call"));
+  !!plugin(provider(a))
+  || (provider(a) === "command-code" && (store.can("POST", "/quota/fetch") || store.can("POST", "/requests/api-call")))
+  || (!!usageURL[provider(a)] && store.can("POST", "/requests/api-call"));
 export const canCheck = (a: Data) => !a.disabled && hasSource(a);
 
 /** What is known about one credential's limits: a live check in this tab, else passive signals. */
@@ -39,7 +41,9 @@ export async function check(a: Data, force = true) {
     let raw: Data;
     const pl = plugin(p);
     if (pl) raw = await api(`/plugins/${encodeURIComponent(pl.id)}/quota`, "POST", { name: a.name, auth_index: a.auth_index });
-    else {
+    else if (p === "command-code" && store.can("POST", "/quota/fetch")) {
+      raw = await api("/quota/fetch", "POST", { auth_index: a.auth_index, provider: p });
+    } else {
       const header: Data = { Authorization: "Bearer $TOKEN$", "Content-Type": "application/json" };
       if (p === "claude") Object.assign(header, { "anthropic-beta": "oauth-2025-04-20", "User-Agent": "claude-cli/2.1.280 (external, cli)" });
       if (p === "codex") {

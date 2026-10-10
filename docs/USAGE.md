@@ -82,7 +82,7 @@ Claude 응답은 `retry-after`와 `anthropic-ratelimit-unified-` 헤더만 남�
 | Codex | `https://chatgpt.com/backend-api/wham/usage` |
 | Kimi | `https://api.kimi.com/coding/v1/usages` |
 | Kimi(ai) | `https://api.kimi.ai/coding/v1/usages` |
-| Command Code | `https://api.commandcode.ai/alpha/billing/credits` |
+| Command Code | `POST /quota/fetch` → `/alpha/whoami`, `/alpha/billing/credits`, `/alpha/billing/subscriptions`, `/alpha/usage/summary?since=` |
 
 <a id="call-path"></a>
 ### 호출 경로
@@ -91,7 +91,7 @@ Claude 응답은 `retry-after`와 `anthropic-ratelimit-unified-` 헤더만 남�
 2. 서버가 `$TOKEN$`을 그 계정의 실제 토큰으로 바꿉니다. 바뀐 토큰은 제공자에게만 가고 대시보드로 돌아오지 않습니다. 요청은 그 계정에 설정한 프록시를 거칩니다(`crates/cpa-server/src/management/api_call.rs`).
 3. 제한은 60초 시간 제한과 응답 본문 64 MiB입니다.
 4. Claude에는 `anthropic-beta: oauth-2025-04-20`과 Claude CLI의 `User-Agent`를, Codex에는 `codex-tui`의 `User-Agent`와 `Chatgpt-Account-Id`를 붙입니다.
-5. 대시보드가 응답을 창 목록으로 바꿔 그립니다. Command Code는 5시간 창과 주간 창의 사용량을 비율로 보여 주고, 월간·구매·무료 크레딧의 합계를 "Credits left"(남은 금액)로 표시합니다. Claude는 Claude Code의 `/usage`와 같은 행(5시간, 주간, 모델별 주간, 초과 사용)을 보여 줍니다. 초과 사용 금액은 센트 단위 값을 달러로 바꿔 표시합니다.
+5. 대시보드가 응답을 창 목록으로 바꿔 그립니다. Command Code는 서버가 모은 본문을 쓰며, 5시간 창과 주간 창에 더해 결제 기간 전체 한도("Period limit" / "전체 한도")와 월간·구매·무료 크레딧 합계("Credits left")를 보여 줍니다. `quota/fetch`가 없는 서버에서는 예전처럼 credits 주소만 호출합니다. Claude는 Claude Code의 `/usage`와 같은 행(5시간, 주간, 모델별 주간, 초과 사용)을 보여 줍니다. 초과 사용 금액은 센트 단위 값을 달러로 바꿔 표시합니다.
 
 응답이 401 또는 403이면 "제공자가 계정 토큰을 거부했다"는 안내를 보여 줍니다. 이때는 토큰을 갱신하거나 계정을 다시 연결합니다.
 

@@ -602,6 +602,10 @@ pub fn router(state: Arc<Management>) -> Router {
         )
         .route(&format!("{v0}/quota/fetch"), methods().post(guarded!(s, quota::fetch)))
         .route(&format!("{v0}/quota/reset"), methods().post(guarded!(s, quota::reset)));
+    router = router.route(
+        &format!("{v8}/quota/fetch"),
+        methods().post(guarded!(s, quota::fetch)),
+    );
     router = router
         .route(
             &format!("{v0}/plugins/{{id}}/enabled"),

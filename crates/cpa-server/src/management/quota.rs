@@ -12,6 +12,7 @@ use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use cpa_core::config::credentials;
 use cpa_core::credential::Credential;
+use cpa_exec::command_code::DEFAULT_BASE_URL;
 use cpa_plugin::api::{QuotaFetchRequest, QuotaResetRequest};
 use cpa_plugin::auth::AuthView;
 use cpa_plugin::gojson::{self as pjson, Node};
@@ -280,10 +281,40 @@ pub(crate) async fn fetch(State(state): State<Arc<Management>>, body: Bytes) -> 
             None => {}
         }
     }
+    if auth.provider == "command-code" {
+        match command_code_quota(&state, &auth).await {
+            Some(Ok(body)) => return go_json(StatusCode::OK, body),
+            Some(Err(e)) => return fail(StatusCode::BAD_GATEWAY, &format!("failed to fetch quota: {e}")),
+            None => {}
+        }
+    }
     fail(
         StatusCode::NOT_IMPLEMENTED,
         "no quota provider available for credential",
     )
+}
+
+async fn command_code_quota(state: &Management, auth: &Credential) -> Option<Result<Vec<u8>, String>> {
+    let key = super::api_call::token_for(auth);
+    if key.is_empty() {
+        return Some(Err("auth token not found".into()));
+    }
+    let base = ["base_url"]
+        .into_iter()
+        .find_map(|k| {
+            auth.attributes
+                .get(k)
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+                .or_else(|| auth.str(k).map(|s| s.trim().to_owned()).filter(|s| !s.is_empty()))
+        })
+        .unwrap_or_else(|| DEFAULT_BASE_URL.to_owned());
+    let client = super::api_call::client_for(state, Some(auth), "")?;
+    match cpa_exec::command_code_quota::fetch(&client, &base, &key).await {
+        Some(value) => Some(Ok(value.to_string().into_bytes())),
+        None => Some(Err("command-code quota endpoints returned no usable body".into())),
+    }
 }
 
 /// `POST /v0/management/quota/reset` (Go `ResetCredentialQuota`).

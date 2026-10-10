@@ -365,11 +365,13 @@ test("Command Code credits read both windows and the credit pools", () => {
   const windows = quotaWindows("command-code", {
     data: {
       windowLimits: { fiveHour: { cap: 200, used: 50, resetAt: reset / 1000 }, weekly: { cap: 0, used: 1 } },
+      period: { used: 7.5, remaining: 12.5, limit: 20, resetAt: "2030-02-01T00:00:00Z" },
       credits: { monthlyCredits: 3.5, purchasedCredits: 1.25, freeCredits: -2 },
     },
   });
   assert.deepEqual(windows, [
     { label: "5-hour limit", used: 25, reset: "2030-01-01T00:00:00.000Z" },
+    { label: "Period limit", used: 37.5, reset: "2030-02-01T00:00:00.000Z", detail: "$7.50 of $20.00" },
     { label: "Credits left", used: null, reset: "", detail: "$4.75" },
   ]);
   assert.deepEqual(quotaWindows("command-code", {}), []);

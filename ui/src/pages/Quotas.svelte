@@ -23,7 +23,7 @@
     >{checking ? t("common.checking") : t("qt.checkAll")}</button
   >
 </div>
-<Missing actions={[["POST", "/requests/api-call", t("qt.miss.live")], ["POST", "/routing/cooldown/reset", t("qt.miss.reset")]]} />
+<Missing actions={[["POST", "/requests/api-call", t("qt.miss.live")], ["POST", "/quota/fetch", t("qt.miss.live")], ["POST", "/routing/cooldown/reset", t("qt.miss.reset")]]} />
 <p class="muted">{t("qt.intro")}</p>
 
 <Load res={store.creds} what={t("what.credentials")}>
