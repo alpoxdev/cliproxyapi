@@ -1,5 +1,6 @@
 <script lang="ts">
   import { store } from "./store.svelte";
+  import { t } from "./lang.svelte";
   // One honest line naming the actions this server does not implement.
   // Each path is the probe request: see store.probe for why it is side-effect free.
   let { actions }: { actions: [method: string, path: string, name: string][] } = $props();
@@ -8,5 +9,5 @@
 </script>
 
 {#if off.length}<p class="note">
-    <span class="lamp off"></span>Not available on this server: {off.join(", ")}.
+    <span class="lamp off"></span>{t("missing.off", { list: off.join(", ") })}
   </p>{/if}

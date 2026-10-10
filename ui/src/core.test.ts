@@ -192,7 +192,7 @@ test("Claude usage: placeholders and skipped buckets never show, null is never 0
 });
 
 test("routing strategy names follow the server's parsing", () => {
-  assert.equal(strategy("fill-first").name, "Fill first");
+  assert.equal(strategy("fill-first").name, "strategy.fillFirst");
   assert.equal(strategy(" FF ").value, "fill-first");
   assert.equal(strategy("wrr").value, "weighted-round-robin");
   assert.equal(strategy("reset-first").value, "soonest-reset");
@@ -211,7 +211,7 @@ test("reconcile keeps unchanged rows by identity", () => {
 });
 
 test("durations round to the unit a reader needs", () => {
-  assert.deepEqual([59_000, 90_000, 125 * 60_000, 3 * 86_400_000].map(span), ["59s", "2m", "2h 5m", "3d"]);
+  assert.deepEqual([59_000, 90_000, 125 * 60_000, 3 * 86_400_000].map((ms) => span(ms)), ["59s", "2m", "2h 5m", "3d"]);
   assert.equal(ago("not a date", now), "");
   assert.equal(ago(at(-10_000), now), "just now");
   assert.equal(ago(at(-3_600_000), now), "1h ago");

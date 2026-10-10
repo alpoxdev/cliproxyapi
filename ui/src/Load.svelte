@@ -2,6 +2,8 @@
   import type { Snippet } from "svelte";
   import { ApiError } from "./api";
   import type { Res } from "./store.svelte";
+  import { t } from "./lang.svelte";
+  import Rich from "./Rich.svelte";
   // Honest states for one server read: loading, not available, error, then the data.
   let {
     res,
@@ -14,28 +16,25 @@
 
 {#if res.data !== undefined && !missing}
   {#if error}<p class="note error" role="alert">
-      <span class="lamp bad"></span>Showing the last good read. {error.message}
-      <button class="key small quiet" onclick={() => res.load()}>Retry</button>
+      <span class="lamp bad"></span>{t("load.stale", { message: error.message })}
+      <button class="key small quiet" onclick={() => res.load()}>{t("common.retry")}</button>
     </p>{/if}
   {@render children(res.data)}
 {:else if missing && error instanceof ApiError}
   <div class="state">
-    <div class="row"><span class="lamp off"></span>Not available on this server</div>
-    <p>
-      <code>{error.method} {error.path}</code> answered {error.status}. It is part of the v8 API, but this
-      server does not implement it yet.
-    </p>
+    <div class="row"><span class="lamp off"></span>{t("load.missing")}</div>
+    <p><Rich text={t("load.missingBody", { call: `${error.method} ${error.path}`, status: error.status })} /></p>
   </div>
 {:else if error}
   <div class="state" role="alert">
-    <div class="row"><span class="lamp bad"></span>Could not load {what.toLowerCase()}</div>
+    <div class="row"><span class="lamp bad"></span>{t("load.failed", { what: what.toLowerCase() })}</div>
     <p>{error.message}</p>
     <div class="actions">
-      <button class="key small" onclick={() => res.load()}>Try again</button>
+      <button class="key small" onclick={() => res.load()}>{t("common.tryAgain")}</button>
     </div>
   </div>
 {:else}
-  <div aria-busy="true" aria-label={`Loading ${what.toLowerCase()}`}>
+  <div aria-busy="true" aria-label={t("load.busy", { what: what.toLowerCase() })}>
     <div class="skel"></div>
   </div>
 {/if}

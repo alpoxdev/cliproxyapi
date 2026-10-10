@@ -1,8 +1,9 @@
 <script lang="ts">
   import { span, type Window } from "./core";
+  import { t } from "./lang.svelte";
 
   let { w }: { w: Window } = $props();
-  const resets = $derived(w.reset && Date.parse(w.reset) > Date.now() ? `resets in ${span(Date.parse(w.reset) - Date.now())}` : "");
+  const resets = $derived(w.reset && Date.parse(w.reset) > Date.now() ? t("meter.resets", { span: span(Date.parse(w.reset) - Date.now(), t) }) : "");
 </script>
 
 <div class="quota">
@@ -10,7 +11,7 @@
   {#if w.used === null}
     <span class="legend detail">{w.detail}</span>
   {:else}
-    <span role="meter" aria-valuenow={w.used} aria-valuemin={0} aria-valuemax={100} aria-label={`${w.label} used`}>
+    <span role="meter" aria-valuenow={w.used} aria-valuemin={0} aria-valuemax={100} aria-label={t("meter.used", { label: w.label })}>
       <svg class="grille" width="216" height="7" aria-hidden="true"
         >{#each { length: 20 } as _, i}<circle cx={i * 11 + 3.5} cy="3.5" r="3.5" class={i < Math.round(w.used / 5) ? (w.used >= 90 ? "f" : "l4") : ""} />{/each}</svg
       >

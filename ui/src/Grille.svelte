@@ -1,5 +1,6 @@
 <script lang="ts">
   import { level, sum, type Buckets } from "./core";
+  import { t } from "./lang.svelte";
   // A perforated grille of ten-minute buckets, oldest on the left.
   // Single row: hole darkness is the bucket's share of `max`.
   // Stacked: each column lights holes bottom-up, like a level meter.
@@ -21,7 +22,7 @@
   width={data.total.length * step - gap}
   height={stack * step - gap}
   role="img"
-  aria-label={`${total.toLocaleString()} requests in ${data.total.length * 10} minutes${failed ? `, ${failed} failed` : ""}`}
+  aria-label={t("grille.label", { n: total, min: data.total.length * 10 }) + (failed ? t("grille.failed", { n: failed }) : "")}
   >{#each data.total as n, i}{#if stack === 1}<circle
         cx={i * step + r}
         cy={r}
