@@ -334,6 +334,23 @@ print(json.dumps({k.arg: k.value.value for n in ast.walk(ast.parse(sys.stdin.rea
   assert.equal(odd.model_providers.cliproxy.base_url, `http://h/p"\\q/v1`);
 });
 
+test("Copilot reads capped quotas only, and Antigravity reads its quota groups", () => {
+  const copilot = quotaWindows("github-copilot", {
+    quota_reset_date_utc: "2030-01-01T00:00:00.000Z",
+    quota_snapshots: {
+      chat: { quota_id: "chat", unlimited: true, has_quota: false, entitlement: 0 },
+      premium_interactions: { quota_id: "premium_interactions", has_quota: true, entitlement: 300, quota_remaining: 75.4, percent_remaining: 25.13 },
+    },
+  });
+  assert.deepEqual(copilot, [
+    { label: "Premium requests", used: 74.9, reset: "2030-01-01T00:00:00.000Z", detail: "75 of 300 left" },
+  ]);
+  const ag = quotaWindows("antigravity", {
+    groups: [{ displayName: "Gemini", buckets: [{ window: "5h", remaining: { remainingFraction: 0.4 }, resetTime: "2030-01-01T00:00:00Z" }] }],
+  });
+  assert.deepEqual(ag, [{ label: "Gemini · 5h", used: 60, reset: "2030-01-01T00:00:00Z" }]);
+});
+
 test("Command Code credits read both windows and the credit pools", () => {
   const reset = Date.parse("2030-01-01T00:00:00Z");
   const windows = quotaWindows("command-code", {

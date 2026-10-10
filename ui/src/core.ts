@@ -70,6 +70,8 @@ const names: Record<string, string> = {
   meta: "Meta",
   devin: "Devin",
   "command-code": "Command Code",
+  nous: "Nous Portal",
+  "github-copilot": "GitHub Copilot",
   "openai-compatibility": "OpenAI-compatible",
   interactions: "Interactions",
 };
@@ -244,7 +246,7 @@ export function quotaWindows(p: string, payload: Data): Window[] {
   if (Array.isArray(payload.groups)) {
     for (const g of payload.groups)
       for (const b of g.buckets || []) {
-        const left = b.remainingFraction ?? b.remaining_fraction;
+        const left = b.remainingFraction ?? b.remaining_fraction ?? b.remaining?.remainingFraction;
         if (typeof left === "number")
           out.push({
             label: [g.displayName || g.display_name, b.window || b.description].filter(Boolean).join(" · "),
@@ -282,6 +284,16 @@ export function quotaWindows(p: string, payload: Data): Window[] {
     }
     const pools = ["monthlyCredits", "purchasedCredits", "freeCredits"].map((k) => Number(b.credits?.[k])).filter(Number.isFinite);
     if (pools.length) out.push({ label: "Credits left", used: null, reset: "", detail: `$${pools.reduce((s, n) => s + Math.max(0, n), 0).toFixed(2)}` });
+  } else if (p === "github-copilot") {
+    // copilot_internal/user: one snapshot per quota; unlimited ones have no cap to show.
+    for (const s of Object.values<Data>(payload.quota_snapshots || {}))
+      if (s?.has_quota && Number(s.entitlement) > 0)
+        out.push({
+          label: s.quota_id === "premium_interactions" ? "Premium requests" : String(s.quota_id).replaceAll("_", " "),
+          used: clamp(100 - Number(s.percent_remaining)),
+          reset: payload.quota_reset_date_utc || "",
+          detail: `${Math.round(Number(s.quota_remaining ?? s.remaining))} of ${s.entitlement} left`,
+        });
   }
   return out;
 }

@@ -4,7 +4,7 @@
   import { label, type Data } from "../core";
   import Missing from "../Missing.svelte";
 
-  const builtIn = ["claude", "codex", "antigravity", "kimi", "kimi-ai", "xai", "devin", "meta", "command-code"];
+  const builtIn = ["claude", "codex", "antigravity", "kimi", "kimi-ai", "xai", "devin", "meta", "command-code", "nous", "github-copilot"];
   // Go starts a local callback forwarder for these when asked by a web UI.
   const forwarded = ["claude", "codex", "antigravity", "xai", "devin"];
   if (!store.plugins.data) store.plugins.load();

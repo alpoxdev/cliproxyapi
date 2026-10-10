@@ -12,6 +12,8 @@ const usageURL: Record<string, string> = {
   kimi: "https://api.kimi.com/coding/v1/usages",
   "kimi-ai": "https://api.kimi.ai/coding/v1/usages",
   "command-code": "https://api.commandcode.ai/alpha/billing/credits",
+  "github-copilot": "https://api.github.com/copilot_internal/user",
+  antigravity: "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
 };
 const plugin = (p: string) =>
   (store.plugins.data || []).find((x) => x.supports_quota && (x.quota_provider || x.id) === p);
@@ -43,7 +45,15 @@ export async function check(a: Data) {
         const account = a.account_id || a.id_token?.chatgpt_account_id;
         if (account) header["Chatgpt-Account-Id"] = account;
       }
-      const r = await api("/requests/api-call", "POST", { authIndex: a.auth_index, method: "GET", url: usageURL[p], header });
+      const ag = p === "antigravity";
+      if (ag) header["User-Agent"] = "antigravity/ide/2.5.5 (os_type=linux; arch=amd64; aidev_client; auth_method=oauth)";
+      const r = await api("/requests/api-call", "POST", {
+        authIndex: a.auth_index,
+        method: ag ? "POST" : "GET",
+        url: usageURL[p],
+        header,
+        data: ag ? JSON.stringify({ project: a.project_id }) : undefined,
+      });
       if (r.status_code < 200 || r.status_code >= 300)
         throw new Error(
           r.status_code === 401 || r.status_code === 403
