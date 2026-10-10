@@ -110,8 +110,9 @@ struct AntigravityLines(Output);
 
 impl LineState for AntigravityLines {
     fn line(&mut self, line: &[u8]) -> Emit {
-        self.0.usage.response_line(Format::Antigravity, line);
-        match crate::gemini_stream::json_payload(line) {
+        let filtered = crate::gemini_stream::filter_sse_usage_metadata(line);
+        self.0.usage.response_line(Format::Antigravity, &filtered);
+        match crate::gemini_stream::json_payload(&filtered) {
             Some(payload) => self.0.translate(payload),
             None => Emit::default(),
         }
@@ -171,7 +172,7 @@ impl AntigravityExecutor {
             patch.set.insert(k.into(), v);
         }
         if project(credential).is_empty()
-            && let Some(found) = flow.discover_project(&tokens.access).await
+            && let Some(found) = flow.load_project(&tokens.access).await
         {
             patch.set.insert("project_id".into(), json!(found));
         }
@@ -209,8 +210,13 @@ impl AntigravityExecutor {
         let base_model = parse_suffix(&req.model).model_name;
         let (from, to) = (req.source_format, Format::Antigravity);
         let resolved = g::resolved(&req);
-        let original = g::translate(&req, cfg, to, &base_model, g::original_request(&req), req.stream, false)?;
         let body = g::translate(&req, cfg, to, &base_model, &req.body, req.stream, false)?;
+        let source = g::original_request(&req);
+        let original = if *source == req.body {
+            body.clone()
+        } else {
+            g::translate(&req, cfg, to, &base_model, source, req.stream, false)?
+        };
         if body.is_empty() {
             return Err(g::bad_gateway());
         }
@@ -325,6 +331,131 @@ mod tests {
         assert!(ex.needs_prepare_at(&soon, &cfg, now));
         assert!(!ex.needs_prepare_at(&later, &cfg, now));
         assert!(!ex.needs_prepare_at(&bare, &cfg, now));
+    }
+
+    async fn serve_once(
+        status: u16,
+        content_type: &'static str,
+        body: &'static str,
+    ) -> (String, std::sync::Arc<std::sync::Mutex<Vec<u8>>>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = format!("http://{}", listener.local_addr().unwrap());
+        let seen: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = Default::default();
+        let sink = seen.clone();
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = Vec::new();
+            let mut chunk = [0u8; 8192];
+            loop {
+                let n = socket.read(&mut chunk).await.unwrap();
+                buf.extend_from_slice(&chunk[..n]);
+                let text = String::from_utf8_lossy(&buf).into_owned();
+                if let Some(head_end) = text.find("\r\n\r\n") {
+                    let length = text
+                        .to_ascii_lowercase()
+                        .lines()
+                        .find_map(|l| {
+                            l.strip_prefix("content-length:")
+                                .map(|v| v.trim().parse::<usize>().unwrap())
+                        })
+                        .unwrap_or(0);
+                    if buf.len() >= head_end + 4 + length {
+                        break;
+                    }
+                }
+            }
+            *sink.lock().unwrap() = buf;
+            let reply = format!(
+                "HTTP/1.1 {status} OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        });
+        (addr, seen)
+    }
+
+    fn generate_request(stream: bool) -> ExecRequest {
+        let body = bytes::Bytes::from_static(
+            br#"{"model":"gemini-3-flash","messages":[{"role":"user","content":"hi there"}],"stream":true}"#,
+        );
+        ExecRequest {
+            operation: Operation::Generate,
+            source_format: Format::OpenAI,
+            response_format: Format::OpenAI,
+            requested_model: "gemini-3-flash".into(),
+            model: "gemini-3-flash".into(),
+            original_body: body.clone(),
+            body,
+            stream,
+            alt: None,
+            session: None,
+            execution_session: None,
+            derived_session: None,
+            resolved_model: None,
+            usage: Default::default(),
+            request_path: String::new(),
+            headers: http::HeaderMap::new(),
+            caller: cpa_core::exec::Caller {
+                principal: "fake-client-key".into(),
+                source: "authorization",
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn a_request_goes_out_in_the_envelope_with_the_ide_headers() {
+        use futures_util::StreamExt;
+        let sse = "data: {\"response\":{\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"hel\"}]}}],\"usageMetadata\":{\"promptTokenCount\":3,\"candidatesTokenCount\":1,\"totalTokenCount\":4}}}\n\ndata: {\"response\":{\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"lo\"}]},\"finishReason\":\"STOP\"}],\"usageMetadata\":{\"promptTokenCount\":3,\"candidatesTokenCount\":2,\"totalTokenCount\":5}}}\n\n";
+        let (addr, seen) = serve_once(200, "text/event-stream", sse).await;
+        let c = credential(json!({
+            "type": "antigravity", "access_token": "tok-1", "project_id": "proj-9", "base_url": addr,
+        }));
+        let ex = AntigravityExecutor::default();
+        let res = ex
+            .execute(&c, generate_request(true), &Config::default())
+            .await
+            .unwrap();
+        let ResponseBody::Stream(mut stream) = res.body else {
+            panic!("stream")
+        };
+        let mut out = String::new();
+        while let Some(chunk) = stream.next().await {
+            out.push_str(&String::from_utf8_lossy(&chunk.unwrap()));
+        }
+        let raw = String::from_utf8(seen.lock().unwrap().clone()).unwrap();
+        let (head, body) = raw.split_once("\r\n\r\n").unwrap();
+        assert!(
+            head.starts_with("POST /v1internal:streamGenerateContent?alt=sse "),
+            "{head}"
+        );
+        let head = head.to_ascii_lowercase();
+        assert!(head.contains("authorization: bearer tok-1"), "{head}");
+        assert!(head.contains("user-agent: antigravity/ide/"), "{head}");
+        let sent: serde_json::Value = serde_json::from_str(body).unwrap();
+        assert_eq!(sent["project"], "proj-9");
+        assert_eq!(sent["userAgent"], "antigravity");
+        assert_eq!(sent["requestType"], "agent");
+        assert!(sent["requestId"].as_str().unwrap().starts_with("agent-"));
+        assert!(sent["request"]["sessionId"].as_str().unwrap().starts_with('-'));
+        assert_eq!(sent["model"], "gemini-3-flash");
+        assert!(
+            out.contains("\"content\":\"hel\"") && out.contains("\"content\":\"lo\""),
+            "{out}"
+        );
+        let with_usage = out.matches("\"usage\"").count();
+        assert_eq!(with_usage, 1, "only the final chunk may carry usage: {out}");
+    }
+
+    #[tokio::test]
+    async fn a_credential_without_a_project_never_reaches_the_network() {
+        let c = credential(json!({"type": "antigravity", "access_token": "tok-1"}));
+        let err = AntigravityExecutor::default()
+            .execute(&c, generate_request(false), &Config::default())
+            .await
+            .map(|_| ())
+            .unwrap_err();
+        assert_eq!(err.status, 401);
     }
 
     #[test]

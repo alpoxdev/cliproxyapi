@@ -240,7 +240,7 @@ impl AntigravityAuth {
         h
     }
 
-    async fn load_project(&self, access: &str) -> Option<String> {
+    pub async fn load_project(&self, access: &str) -> Option<String> {
         let url = format!("{}/{API_VERSION}:loadCodeAssist", self.prod_api);
         let body = json!({"metadata": {"ideType": "ANTIGRAVITY"}}).to_string();
         let (status, v) = self
