@@ -7,8 +7,7 @@
 //! files in auth-dir; cliproxy-rs keeps the callback with the pending session in
 //! memory, so nothing extra appears in the watched directory.
 //!
-//! ponytail: the antigravity login and Vertex import answer `provider_not_found` (no
-//! executor or auth module for them yet); no plugin logins.
+//! ponytail: the Vertex import answers `provider_not_found`; no plugin logins.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -355,6 +354,9 @@ pub(crate) async fn auth_url(State(state): State<Arc<Management>>, RawQuery(raw)
         "xai" => start_xai(state).await,
         "devin" => start_devin(state).await,
         "command-code" | "commandcode" => start_command_code(state).await,
+        "nous" => start_nous(state).await,
+        "github-copilot" | "copilot" => start_github_copilot(state).await,
+        "antigravity" | "anti-gravity" => start_antigravity(state, webui).await,
         // Go `ServePluginAuthURL`: a plugin auth provider's login, else not found.
         _ => {
             let raw = raw_query.as_deref().unwrap_or_default();
@@ -725,6 +727,153 @@ async fn start_command_code(state: Arc<Management>) -> Response {
         )
         .await;
         settle(&worker, &flow, outcome);
+    });
+    started(url, sid)
+}
+
+/// Nous Portal device login (no Go counterpart): the poller saves the credential file.
+async fn start_nous(state: Arc<Management>) -> Response {
+    use cpa_exec::nous::{NousAuth, login_record, write_login};
+    let sid = format!("nous-{}", unix_nanos());
+    let mut auth = NousAuth::new(login_client(&state));
+    if let Some(base) = &state.login_base {
+        auth = auth.with_portal(base).with_min_interval(Duration::from_millis(10));
+    }
+    let Ok(code) = auth.request_device_code().await else {
+        return fail(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to start device authorization flow",
+        );
+    };
+    state.oauth.register(&sid, "nous");
+    let response = device_started(
+        code.url.clone(),
+        sid.clone(),
+        &code.user_code,
+        Some(code.expires_in.as_secs() as i64),
+    );
+    let worker = state.clone();
+    tokio::spawn(async move {
+        let polled = tokio::select! {
+            t = auth.poll(&code) => t,
+            () = cancelled(&worker, &sid, "nous") => return,
+        };
+        let outcome = match polled {
+            Err(_) if !worker.oauth.is_pending(&sid, "nous") => Outcome::Cancelled,
+            Err(e) => Outcome::Failed(with_cause("Authentication failed", &exec_text(&e))),
+            Ok(tokens) => {
+                let record = login_record(&tokens, chrono::Utc::now().timestamp_millis());
+                let write = |dir: PathBuf, record| write_login(&dir, &record).map_err(|e| exec_text(&e));
+                save_if_pending(
+                    &worker,
+                    &sid,
+                    "nous",
+                    record,
+                    write,
+                    "Failed to save authentication tokens",
+                )
+                .await
+            }
+        };
+        settle(&worker, &sid, outcome);
+    });
+    response
+}
+
+/// GitHub Copilot device login (no Go counterpart).
+async fn start_github_copilot(state: Arc<Management>) -> Response {
+    use cpa_exec::github_copilot::{CopilotAuth, complete_login, write_login};
+    let sid = format!("copilot-{}", unix_nanos());
+    let mut auth = CopilotAuth::new(login_client(&state));
+    if let Some(base) = &state.login_base {
+        auth = auth.with_origin(base).with_min_interval(Duration::from_millis(10));
+    }
+    let Ok(code) = auth.request_device_code().await else {
+        return fail(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "failed to start device authorization flow",
+        );
+    };
+    state.oauth.register(&sid, "github-copilot");
+    let response = device_started(
+        code.url.clone(),
+        sid.clone(),
+        &code.user_code,
+        Some(code.expires_in.as_secs() as i64),
+    );
+    let worker = state.clone();
+    tokio::spawn(async move {
+        let done = tokio::select! {
+            r = complete_login(&auth, &code) => r,
+            () = cancelled(&worker, &sid, "github-copilot") => return,
+        };
+        let outcome = match done {
+            Err(_) if !worker.oauth.is_pending(&sid, "github-copilot") => Outcome::Cancelled,
+            Err(e) => Outcome::Failed(with_cause("Authentication failed", &exec_text(&e))),
+            Ok(record) => {
+                let write = |dir: PathBuf, record| write_login(&dir, &record).map_err(|e| exec_text(&e));
+                save_if_pending(
+                    &worker,
+                    &sid,
+                    "github-copilot",
+                    record,
+                    write,
+                    "Failed to save authentication tokens",
+                )
+                .await
+            }
+        };
+        settle(&worker, &sid, outcome);
+    });
+    response
+}
+
+/// Google Antigravity login (Go `RequestAntigravityToken`): PKCE with a callback on the
+/// main listener's `/antigravity/callback`.
+async fn start_antigravity(state: Arc<Management>, webui: bool) -> Response {
+    use cpa_exec::antigravity_auth::{
+        AntigravityAuth, CALLBACK_PORT, authorize_url, complete_login, redirect_uri, write_login,
+    };
+    let Ok((verifier, challenge)) = cpa_exec::oauth::pkce() else {
+        return fail(StatusCode::INTERNAL_SERVER_ERROR, "failed to generate PKCE codes");
+    };
+    let Some(sid) = random_state() else {
+        return fail(StatusCode::INTERNAL_SERVER_ERROR, "failed to generate state parameter");
+    };
+    let redirect = redirect_uri(CALLBACK_PORT);
+    let url = authorize_url(&sid, &challenge, &redirect);
+    state.oauth.register(&sid, "antigravity");
+    let forwarder = if webui {
+        match start_forwarder(&state, CALLBACK_PORT, "/antigravity/callback").await {
+            Ok(id) => Some(id),
+            Err(message) => return fail(StatusCode::INTERNAL_SERVER_ERROR, message),
+        }
+    } else {
+        None
+    };
+    let worker = state.clone();
+    let flow = sid.clone();
+    tokio::spawn(async move {
+        if let Some(code) = wait_for_callback(&worker, &flow, "antigravity", "Bad request").await {
+            let auth = AntigravityAuth::new(login_client(&worker));
+            let outcome = match complete_login(&auth, &code, &redirect, &verifier).await {
+                Ok(record) => {
+                    let write = |dir: PathBuf, record| write_login(&dir, &record).map_err(|e| exec_text(&e));
+                    save_if_pending(
+                        &worker,
+                        &flow,
+                        "antigravity",
+                        record,
+                        write,
+                        "Failed to save authentication tokens",
+                    )
+                    .await
+                }
+                Err(e) => Outcome::Failed(with_cause("Authentication failed", &exec_text(&e))),
+            };
+            settle(&worker, &flow, outcome);
+        }
+        stop_forwarder(&worker, CALLBACK_PORT, forwarder);
     });
     started(url, sid)
 }

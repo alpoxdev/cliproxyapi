@@ -82,6 +82,12 @@ struct Args {
     /// Login to Command Code (browser sign-in, the Command Code CLI login, or a pasted API key)
     #[arg(long)]
     command_code_login: bool,
+    /// Login to Nous Portal (device code)
+    #[arg(long)]
+    nous_login: bool,
+    /// Login to GitHub Copilot (device code)
+    #[arg(long)]
+    github_copilot_login: bool,
     /// Discover local AI gateways and CPA instances on the LAN
     #[arg(long)]
     discover: bool,
@@ -303,7 +309,7 @@ fn go_parse_bool(v: &str) -> Option<bool> {
 /// Go `argvEnablesBoolFlag`: a pre-parse scan (stops at the first non-flag) used to
 /// keep stdout clean for `--discover-json`.
 fn argv_enables_bool_flag(args: &[String], name: &str) -> bool {
-    const BOOL_FLAGS: [&str; 17] = [
+    const BOOL_FLAGS: [&str; 19] = [
         "codex-login",
         "codex-device-login",
         "claude-login",
@@ -315,6 +321,8 @@ fn argv_enables_bool_flag(args: &[String], name: &str) -> bool {
         "devin-login",
         "meta-login",
         "command-code-login",
+        "nous-login",
+        "github-copilot-login",
         "discover",
         "discover-json",
         "home-disable-cluster-discovery",
@@ -571,12 +579,6 @@ async fn wait_for_cloud_deploy() {
     );
     shutdown_signal().await;
     tracing::info!("Cloud deploy mode: Shutdown signal received; exiting");
-}
-
-fn unsupported(what: &str) -> ! {
-    // ponytail: these Go modes have no Rust port yet; refuse instead of starting a server.
-    tracing::error!("{what} is not supported by cliproxy-rs yet");
-    std::process::exit(1);
 }
 
 /// Binds like Go's `net.Listen("tcp", host:port)`. An empty host is one dual-stack socket
@@ -992,6 +994,8 @@ fn command_mode(args: &Args) -> bool {
         || args.devin_login
         || args.meta_login
         || args.command_code_login
+        || args.nous_login
+        || args.github_copilot_login
 }
 
 /// Go's TUI client mode: a pure management client; the server runs elsewhere.
@@ -1189,7 +1193,13 @@ async fn command(args: &Args, config: &Config) -> anyhow::Result<bool> {
         return Ok(true);
     }
     if args.antigravity_login {
-        unsupported("Antigravity login (-antigravity-login)");
+        if let Err(error) = cpa_exec::antigravity_auth::login(config, args.no_browser, args.oauth_callback_port).await {
+            tracing::error!(
+                "Antigravity authentication failed: {}",
+                String::from_utf8_lossy(&error.body)
+            );
+        }
+        return Ok(true);
     }
     if args.codex_login || args.codex_device_login {
         let options = cpa_exec::codex_oauth::LoginOptions {
@@ -1248,6 +1258,24 @@ async fn command(args: &Args, config: &Config) -> anyhow::Result<bool> {
     }
     if args.meta_login {
         cpa_exec::meta_auth::login(config, args.no_browser).await?;
+        return Ok(true);
+    }
+    if args.nous_login {
+        if let Err(error) = cpa_exec::nous::login(config, args.no_browser).await {
+            tracing::error!(
+                "Nous Portal authentication failed: {}",
+                String::from_utf8_lossy(&error.body)
+            );
+        }
+        return Ok(true);
+    }
+    if args.github_copilot_login {
+        if let Err(error) = cpa_exec::github_copilot::login(config, args.no_browser).await {
+            tracing::error!(
+                "GitHub Copilot authentication failed: {}",
+                String::from_utf8_lossy(&error.body)
+            );
+        }
         return Ok(true);
     }
     if args.command_code_login {

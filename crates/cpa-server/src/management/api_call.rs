@@ -133,6 +133,13 @@ fn decode(body: &[u8]) -> Option<Request> {
 
 /// Go `tokenValueFromMetadata` then the `api_key` / `session_token` attributes.
 pub(super) fn token_for(c: &Credential) -> String {
+    // Copilot's usage endpoint wants the GitHub login token, which a file keeps in
+    // `refresh_token`; `access_token` there is the short-lived Copilot token.
+    if c.provider == "github-copilot"
+        && let Some(github) = c.str("refresh_token").map(str::trim).filter(|s| !s.is_empty())
+    {
+        return github.to_owned();
+    }
     let meta = |key: &str| {
         c.metadata
             .get(key)
@@ -362,6 +369,22 @@ pub(crate) async fn api_call(State(state): State<Arc<Management>>, body: Bytes) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn copilot_usage_calls_use_the_github_token() {
+        let credential = |meta: serde_json::Value| {
+            Credential::from_file(
+                std::path::Path::new("/a"),
+                std::path::Path::new("/a/c.json"),
+                meta.as_object().unwrap().clone(),
+            )
+            .unwrap()
+        };
+        let copilot = credential(json!({"type": "github-copilot", "access_token": "tid=1", "refresh_token": "gho_x"}));
+        assert_eq!(token_for(&copilot), "gho_x");
+        let other = credential(json!({"type": "claude", "access_token": "a", "refresh_token": "r"}));
+        assert_eq!(token_for(&other), "a");
+    }
 
     #[test]
     fn decodes_like_gin_should_bind_json() {

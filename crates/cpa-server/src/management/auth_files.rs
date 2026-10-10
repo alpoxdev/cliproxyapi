@@ -1647,6 +1647,8 @@ pub(crate) async fn model_definitions(UrlPath(channel): UrlPath<String>) -> Resp
     }
     let models = match channel.to_lowercase().as_str() {
         "command-code" | "commandcode" => Some(cpa_core::registry::command_code::definitions()),
+        "nous" => Some(cpa_core::registry::gateway::definitions("nous")),
+        "github-copilot" | "copilot" => Some(cpa_core::registry::gateway::definitions("github-copilot")),
         _ => channel_models(&channel).cloned(),
     };
     match models {

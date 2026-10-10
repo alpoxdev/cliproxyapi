@@ -299,7 +299,19 @@ async fn v0_aliases_match_v8_and_lists_carry_live_auth_indexes() {
     ] {
         let (a, b) = (get("GET", v0).await.unwrap(), get("GET", v8).await.unwrap());
         assert_eq!(a.status(), b.status(), "{v0}");
-        assert_eq!(a.text().await.unwrap(), b.text().await.unwrap(), "{v0}");
+        let (a, b) = (a.text().await.unwrap(), b.text().await.unwrap());
+        if v0.contains("antigravity") {
+            // Each login URL carries its own random state and PKCE challenge.
+            let (a, b): (Value, Value) = (serde_json::from_str(&a).unwrap(), serde_json::from_str(&b).unwrap());
+            assert_eq!(
+                (&a["status"], a["url"].as_str().map(|u| u.split('?').next())),
+                (&b["status"], b["url"].as_str().map(|u| u.split('?').next())),
+                "{v0}"
+            );
+            assert_ne!(a["state"], b["state"], "{v0}");
+        } else {
+            assert_eq!(a, b, "{v0}");
+        }
     }
     let (a, b) = (
         get("POST", "/v0/management/vertex/import").await.unwrap(),

@@ -311,8 +311,9 @@ async fn unregistered_and_unserved_models_follow_go_error_contracts() {
                 "claude-off.json",
                 r#"{"type":"claude","access_token":"t","disabled":true}"#,
             ),
-            // A provider without an executor. Never use one that has an executor here: its
-            // request would go to the real provider host.
+            // A credential no request can use. It has an executor now, but no Cloud Code
+            // Assist project, so the executor refuses before anything leaves the machine.
+            // Never give it a project here: the request would go to the real Google host.
             (
                 "antigravity-a.json",
                 r#"{"type":"antigravity","access_token":"fake-ag"}"#,
@@ -335,14 +336,10 @@ async fn unregistered_and_unserved_models_follow_go_error_contracts() {
         res.text().await.unwrap(),
         r#"{"type":"error","error":{"type":"invalid_request_error","message":"unknown provider for model claude-opus-5"}}"#
     );
-    // A registered model whose provider has no executor yet is auth_not_found (Go skips
-    // auths whose executor is not registered).
+    // An Antigravity credential without a project is refused by its executor.
     let res = post(r#"{"model":"gemini-pro-agent"}"#).await.unwrap();
-    assert_eq!(res.status().as_u16(), 503);
-    assert_eq!(
-        res.text().await.unwrap(),
-        r#"{"type":"error","error":{"type":"api_error","message":"auth_not_found: no auth available (providers=antigravity, model=gemini-pro-agent)"}}"#
-    );
+    assert_eq!(res.status().as_u16(), 401);
+    assert!(res.text().await.unwrap().contains("no Cloud Code Assist project"));
     std::fs::remove_dir_all(dir).unwrap();
 }
 
