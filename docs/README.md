@@ -9,6 +9,8 @@
 | [시작하기](GETTING-STARTED.md) | 설치, 첫 설정, 계정과 도구 연결, 안전하게 실행하기 |
 | [내 도구와 함께 쓰기](CLIENTS.md) | Claude Code, Codex CLI, Gemini CLI, Amp, OpenCode, Cursor, Cline, Zed 등과 SDK |
 | [여러 계정 쓰기](MULTI-ACCOUNT.md) | 라우팅 방식, 세션 고정, 쿨다운, 사용 한도 보기, 계정별 프록시, 원격 접속 |
+| [사용량과 한도 조회](USAGE.md) | 토큰 사용량, 계정별 사용 한도, 남은 한도를 읽는 방법과 서버 안에서 모이는 경로 |
+| [캐시 처리](CACHE.md) | 제공자 프롬프트 캐시를 살리는 방법, 서버 안 캐시의 종류와 한계, 캐시하지 않는 것 |
 | [설정](CONFIGURATION.md) | 자주 바꾸게 되는 `config.yaml` 설정 |
 | [설치](INSTALL.md) | 설치 스크립트, 릴리스 실행 파일, Docker, 소스에서 빌드, 로그인 시 자동 시작 |
 | [CLIProxyAPI에서 옮기기](MIGRATING-FROM-GO.md) | Go 서버에서 cliproxy-rs로 옮기고 다시 되돌리는 방법 |
